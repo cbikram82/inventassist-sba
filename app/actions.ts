@@ -47,6 +47,8 @@ export async function updateInventoryItem(item: InventoryItem) {
         category: item.category,
         description: item.description,
         date: item.date,
+        location: item.location,
+        personName: item.personName,
         updated_at: new Date().toISOString(),
       })
       .eq("id", item.id)

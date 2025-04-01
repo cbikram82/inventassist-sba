@@ -13,6 +13,7 @@ import type { InventoryItem } from "@/types/inventory"
 import { addInventoryItem, updateInventoryItem } from "@/app/actions"
 import { CategorySelector } from "./category-selector"
 import { DatePicker } from "./ui/date-picker"
+import { cn } from "@/lib/utils"
 
 interface ItemFormProps {
   onCancel: () => void
@@ -27,6 +28,8 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
     category: initialData?.category || "",
     description: initialData?.description || "",
     date: initialData?.date || new Date().toISOString().split("T")[0],
+    location: initialData?.location || "Safestore",
+    personName: initialData?.personName || "",
   })
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -103,6 +106,14 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
 
     if (!formData.date) {
       newErrors.date = "Date is required"
+    }
+
+    if (!formData.location) {
+      newErrors.location = "Location is required"
+    }
+
+    if (formData.location === "Home" && !formData.personName.trim()) {
+      newErrors.personName = "Person name is required for home location"
     }
 
     setErrors(newErrors)
@@ -229,6 +240,36 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
               />
               {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
             </div>
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <select
+                id="location"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                className={cn(
+                  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                  errors.location ? "border-red-500" : ""
+                )}
+              >
+                <option value="Safestore">Safestore</option>
+                <option value="Home">Home</option>
+              </select>
+              {errors.location && <p className="text-sm text-red-500">{errors.location}</p>}
+            </div>
+            {formData.location === "Home" && (
+              <div>
+                <Label htmlFor="personName">Person Name</Label>
+                <Input
+                  id="personName"
+                  name="personName"
+                  value={formData.personName}
+                  onChange={handleChange}
+                  className={errors.personName ? "border-red-500" : ""}
+                />
+                {errors.personName && <p className="text-sm text-red-500">{errors.personName}</p>}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
