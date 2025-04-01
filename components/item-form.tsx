@@ -24,6 +24,7 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
     quantity: initialData?.quantity || 0,
+    category: initialData?.category || "",
     description: initialData?.description || "",
     date: initialData?.date || new Date().toISOString().split("T")[0],
   })
@@ -90,6 +91,10 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
 
     if (!formData.name.trim()) {
       newErrors.name = "Name is required"
+    }
+
+    if (!formData.category.trim()) {
+      newErrors.category = "Category is required"
     }
 
     if (formData.quantity < 0) {
@@ -181,6 +186,15 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
                 className={errors.name ? "border-red-500" : ""}
               />
               {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+            </div>
+            <div>
+              <Label htmlFor="category">Category</Label>
+              <CategorySelector 
+                value={formData.category} 
+                onChange={handleCategoryChange}
+                className={errors.category ? "border-red-500" : ""}
+              />
+              {errors.category && <p className="text-sm text-red-500">{errors.category}</p>}
             </div>
             <div>
               <Label htmlFor="quantity">Quantity</Label>

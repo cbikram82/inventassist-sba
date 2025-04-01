@@ -25,9 +25,10 @@ interface CategorySelectorProps {
   value: string
   onChange: (value: string) => void
   disabled?: boolean
+  className?: string
 }
 
-export function CategorySelector({ value, onChange, disabled = false }: CategorySelectorProps) {
+export function CategorySelector({ value, onChange, disabled = false, className }: CategorySelectorProps) {
   const [open, setOpen] = React.useState(false)
   const [categories, setCategories] = React.useState<string[]>(defaultCategories)
   const [dialogOpen, setDialogOpen] = React.useState(false)
@@ -55,7 +56,7 @@ export function CategorySelector({ value, onChange, disabled = false }: Category
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between"
+            className={cn("w-full justify-between", className)}
             disabled={disabled}
             onClick={() => setOpen(true)}
           >
