@@ -16,7 +16,7 @@ export function InventorySummary({ items }: InventorySummaryProps) {
 
   const uniqueCategories = new Set(items.map((item) => item.category)).size
 
-  const totalValue = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const totalValue = items.reduce((sum, item) => sum + item.quantity, 0)
 
   const summaryCards = [
     {

@@ -45,7 +45,6 @@ export async function updateInventoryItem(item: InventoryItem) {
         name: item.name,
         quantity: item.quantity,
         category: item.category,
-        price: item.price,
         description: item.description,
         date: item.date,
         updated_at: new Date().toISOString(),

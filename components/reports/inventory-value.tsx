@@ -16,7 +16,7 @@ export function InventoryValue({ items }: InventoryValueProps) {
     const categoryValue: Record<string, number> = {}
 
     items.forEach((item) => {
-      const itemValue = item.price * item.quantity
+      const itemValue = item.quantity
       if (categoryValue[item.category]) {
         categoryValue[item.category] += itemValue
       } else {

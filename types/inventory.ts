@@ -3,8 +3,7 @@ export interface InventoryItem {
   name: string
   quantity: number
   category: string
-  price: number
-  description: string
+  description?: string
   date: string // New field for inventory date
   created_at?: string
   updated_at?: string

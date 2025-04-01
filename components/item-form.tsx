@@ -21,13 +21,11 @@ interface ItemFormProps {
 }
 
 export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
-  const [formData, setFormData] = useState<Omit<InventoryItem, "id">>({
+  const [formData, setFormData] = useState({
     name: initialData?.name || "",
     quantity: initialData?.quantity || 0,
-    category: initialData?.category || "",
-    price: initialData?.price || 0,
     description: initialData?.description || "",
-    date: initialData?.date || new Date().toISOString().split("T")[0], // Default to today
+    date: initialData?.date || new Date().toISOString().split("T")[0],
   })
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -40,10 +38,10 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: name === "quantity" || name === "price" ? Number.parseFloat(value) || 0 : value,
-    })
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "quantity" ? Number.parseFloat(value) || 0 : value,
+    }))
 
     // Clear error when field is edited
     if (errors[name]) {
@@ -94,16 +92,8 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
       newErrors.name = "Name is required"
     }
 
-    if (!formData.category.trim()) {
-      newErrors.category = "Category is required"
-    }
-
     if (formData.quantity < 0) {
       newErrors.quantity = "Quantity cannot be negative"
-    }
-
-    if (formData.price < 0) {
-      newErrors.price = "Price cannot be negative"
     }
 
     if (!formData.date) {
@@ -180,27 +170,19 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
           <DialogTitle>{initialData ? "Edit Item" : "Add New Item"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Item name"
-              disabled={isSubmitting}
-            />
-            {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="category">Category</Label>
-            <CategorySelector value={formData.category} onChange={handleCategoryChange} disabled={isSubmitting} />
-            {errors.category && <p className="text-sm text-red-500">{errors.category}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className={errors.name ? "border-red-500" : ""}
+              />
+              {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+            </div>
+            <div>
               <Label htmlFor="quantity">Quantity</Label>
               <Input
                 id="quantity"
@@ -208,46 +190,31 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
                 type="number"
                 value={formData.quantity}
                 onChange={handleChange}
-                min="0"
-                step="1"
-                disabled={isSubmitting}
+                className={errors.quantity ? "border-red-500" : ""}
               />
               {errors.quantity && <p className="text-sm text-red-500">{errors.quantity}</p>}
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="price">Price</Label>
-              <Input
-                id="price"
-                name="price"
-                type="number"
-                value={formData.price}
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formData.description}
                 onChange={handleChange}
-                min="0"
-                step="0.01"
-                disabled={isSubmitting}
               />
-              {errors.price && <p className="text-sm text-red-500">{errors.price}</p>}
             </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="date">Date</Label>
-            <DatePicker date={selectedDate} setDate={handleDateChange} disabled={isSubmitting} />
-            {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Item description"
-              rows={3}
-              disabled={isSubmitting}
-            />
+            <div>
+              <Label htmlFor="date">Date</Label>
+              <Input
+                id="date"
+                name="date"
+                type="date"
+                value={formData.date}
+                onChange={handleChange}
+                className={errors.date ? "border-red-500" : ""}
+              />
+              {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
