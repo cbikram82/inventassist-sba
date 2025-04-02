@@ -37,6 +37,8 @@ export async function createUser(email: string, password: string, role: UserRole
 
     if (profileError) {
       console.error('Profile creation error:', profileError)
+      // If profile creation fails, we should clean up the auth user
+      await supabase.auth.signOut()
       throw profileError
     }
 
