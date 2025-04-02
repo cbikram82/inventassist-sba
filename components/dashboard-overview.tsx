@@ -10,11 +10,15 @@ import type { InventoryItem } from "@/types/inventory"
 import { getInventoryItems } from "@/app/actions"
 import { InventorySummary } from "./reports/inventory-summary"
 import { LowStockItems } from "./reports/low-stock-items"
+import { useAuth } from "@/app/auth-provider"
 
 export function DashboardOverview() {
   const [items, setItems] = useState<InventoryItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { user } = useAuth()
+
+  const canEdit = user?.role === 'admin' || user?.role === 'editor'
 
   useEffect(() => {
     async function loadItems() {
@@ -82,40 +86,44 @@ export function DashboardOverview() {
               </div>
             )}
           </CardContent>
-          <CardFooter>
-            <Link href="/inventory" className="w-full">
-              <Button variant="outline" className="w-full">
-                <Boxes className="mr-2 h-4 w-4" />
-                Manage Inventory
-              </Button>
-            </Link>
-          </CardFooter>
+          {canEdit && (
+            <CardFooter>
+              <Link href="/inventory" className="w-full">
+                <Button variant="outline" className="w-full">
+                  <Boxes className="mr-2 h-4 w-4" />
+                  Manage Inventory
+                </Button>
+              </Link>
+            </CardFooter>
+          )}
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and shortcuts</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Link href="/inventory" className="w-full">
-              <Button className="w-full bg-sba-red hover:bg-sba-red/90">
-                <Plus className="mr-2 h-4 w-4" />
-                Add New Item
-              </Button>
-            </Link>
+        {canEdit && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Common tasks and shortcuts</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Link href="/inventory" className="w-full">
+                <Button className="w-full bg-sba-red hover:bg-sba-red/90">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add New Item
+                </Button>
+              </Link>
 
-            <Link href="/reports" className="w-full">
-              <Button variant="outline" className="w-full">
-                <BarChart3 className="mr-2 h-4 w-4" />
-                View Reports
-              </Button>
-            </Link>
-          </CardContent>
-          <CardFooter>
-            <p className="text-sm text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
-          </CardFooter>
-        </Card>
+              <Link href="/reports" className="w-full">
+                <Button variant="outline" className="w-full">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  View Reports
+                </Button>
+              </Link>
+            </CardContent>
+            <CardFooter>
+              <p className="text-sm text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
+            </CardFooter>
+          </Card>
+        )}
       </div>
     </div>
   )
