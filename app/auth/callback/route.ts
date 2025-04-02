@@ -17,6 +17,17 @@ export async function GET(request: Request) {
         // Redirect to login with error message
         return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin))
       }
+
+      // Check if email is confirmed
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) {
+        console.error('User fetch error:', userError)
+        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(userError.message)}`, requestUrl.origin))
+      }
+
+      if (!user?.email_confirmed_at) {
+        return NextResponse.redirect(new URL('/login?error=Please confirm your email before signing in', requestUrl.origin))
+      }
     } catch (error) {
       console.error('Auth callback exception:', error)
       return NextResponse.redirect(new URL(`/login?error=An unexpected error occurred`, requestUrl.origin))
