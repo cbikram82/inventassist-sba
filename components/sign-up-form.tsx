@@ -70,7 +70,7 @@ export function SignUpForm() {
 
         console.log('Profile created successfully:', profileData)
 
-        // Sign in the user immediately
+        // Sign in the user immediately since email confirmation is disabled
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,

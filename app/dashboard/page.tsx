@@ -1,76 +1,51 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package, Users, ShoppingCart, AlertCircle } from "lucide-react"
-import { Inventory } from "@/components/inventory"
+import { Button } from "@/components/ui/button"
+import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
+import { Package, Users, Settings, Plus } from "lucide-react"
 
 interface DashboardStats {
-  totalItems: number
-  lowStock: number
   totalUsers: number
-  recentOrders: number
+  totalItems: number
+  recentUsers: any[]
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
   const [stats, setStats] = useState<DashboardStats>({
-    totalItems: 0,
-    lowStock: 0,
     totalUsers: 0,
-    recentOrders: 0,
+    totalItems: 0,
+    recentUsers: [],
   })
   const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) throw error
-        if (!session) {
-          router.push('/login')
-        }
-      } catch (error) {
-        console.error('Auth check error:', error)
-        router.push('/login')
-      }
-    }
-    checkAuth()
-  }, [router])
+  const router = useRouter()
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Fetch total items
-        const { count: totalItems } = await supabase
-          .from('inventory')
-          .select('*', { count: 'exact', head: true })
-
-        // Fetch low stock items (less than 10)
-        const { count: lowStock } = await supabase
-          .from('inventory')
-          .select('*', { count: 'exact', head: true })
-          .lt('quantity', 10)
-
-        // Fetch total users
-        const { count: totalUsers } = await supabase
+        // Get total users
+        const { count: userCount } = await supabase
           .from('users')
           .select('*', { count: 'exact', head: true })
 
-        // Fetch recent orders (last 7 days)
-        const { count: recentOrders } = await supabase
-          .from('orders')
+        // Get total items
+        const { count: itemCount } = await supabase
+          .from('items')
           .select('*', { count: 'exact', head: true })
-          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+
+        // Get recent users
+        const { data: recentUsers } = await supabase
+          .from('users')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5)
 
         setStats({
-          totalItems: totalItems || 0,
-          lowStock: lowStock || 0,
-          totalUsers: totalUsers || 0,
-          recentOrders: recentOrders || 0,
+          totalUsers: userCount || 0,
+          totalItems: itemCount || 0,
+          recentUsers: recentUsers || [],
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
@@ -84,45 +59,28 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome to your inventory management system</p>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">
+            Welcome to your inventory management system
+          </p>
         </div>
-        <Button onClick={() => router.push('/inventory/new')}>Add New Item</Button>
+        <Button onClick={() => router.push('/dashboard/inventory/new')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Item
+        </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalItems}</div>
-            <p className="text-xs text-muted-foreground">Items in inventory</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.lowStock}</div>
-            <p className="text-xs text-muted-foreground">Items below threshold</p>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -130,18 +88,35 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">Registered users</p>
+            <p className="text-xs text-muted-foreground">
+              Registered users in the system
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Orders</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.recentOrders}</div>
-            <p className="text-xs text-muted-foreground">Last 7 days</p>
+            <div className="text-2xl font-bold">{stats.totalItems}</div>
+            <p className="text-xs text-muted-foreground">
+              Items in inventory
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">System Status</CardTitle>
+            <Settings className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Active</div>
+            <p className="text-xs text-muted-foreground">
+              All systems operational
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -149,11 +124,64 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Recent Inventory</CardTitle>
-            <CardDescription>Latest items in your inventory</CardDescription>
+            <CardTitle>Recent Users</CardTitle>
+            <CardDescription>
+              Latest users who joined the system
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Inventory />
+            <div className="space-y-4">
+              {stats.recentUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{user.email}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Joined {new Date(user.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/users/${user.id}`)}>
+                    View
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>
+              Common tasks and shortcuts
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => router.push('/dashboard/inventory')}
+              >
+                <Package className="mr-2 h-4 w-4" />
+                Manage Inventory
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => router.push('/dashboard/users')}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Manage Users
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => router.push('/dashboard/settings')}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                System Settings
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
