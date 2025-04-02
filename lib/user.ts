@@ -4,7 +4,42 @@ import type { User, UserRole } from "@/types/user"
 
 async function createUserProfile(userId: string, email: string, role: UserRole, name?: string) {
   try {
-    const { data: profileData, error: profileError } = await supabaseAdmin
+    // First check if the profile already exists
+    const { data: existingProfile, error: checkError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single()
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      console.error('Error checking existing profile:', checkError)
+      throw checkError
+    }
+
+    if (existingProfile) {
+      console.log('Profile already exists, updating...')
+      const { data: profileData, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          email,
+          role,
+          name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .select()
+        .single()
+
+      if (updateError) {
+        console.error('Profile update error:', updateError)
+        throw updateError
+      }
+
+      return profileData
+    }
+
+    // If no existing profile, create a new one
+    const { data: profileData, error: insertError } = await supabaseAdmin
       .from('users')
       .insert([
         {
@@ -13,19 +48,20 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
           role,
           name,
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
       ])
       .select()
       .single()
 
-    if (profileError) {
-      console.error('Profile creation error:', profileError)
-      throw profileError
+    if (insertError) {
+      console.error('Profile creation error:', insertError)
+      throw insertError
     }
 
     return profileData
   } catch (error: any) {
-    console.error('Error creating profile:', error)
+    console.error('Error managing profile:', error)
     throw error
   }
 }
@@ -62,15 +98,15 @@ export async function createUser(email: string, password: string, role: UserRole
     // Wait a moment to ensure the auth user is fully created
     await new Promise(resolve => setTimeout(resolve, 1000))
 
-    // Then create the user profile
-    console.log('Creating user profile...')
+    // Then create or update the user profile
+    console.log('Creating/updating user profile...')
     const profileData = await createUserProfile(
       authData.user.id,
       email,
       role,
       name
     )
-    console.log('User profile created successfully:', profileData)
+    console.log('User profile managed successfully:', profileData)
 
     return { user: authData.user, error: null }
   } catch (error: any) {
