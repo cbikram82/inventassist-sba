@@ -27,6 +27,8 @@ export default function NewItemPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [isCheckingName, setIsCheckingName] = useState(false)
+  const [nameExists, setNameExists] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -37,6 +39,35 @@ export default function NewItemPage() {
   useEffect(() => {
     fetchCategories()
   }, [])
+
+  useEffect(() => {
+    const checkName = async () => {
+      if (!formData.name.trim()) {
+        setNameExists(false)
+        return
+      }
+
+      setIsCheckingName(true)
+      try {
+        const { data: existingItems, error: checkError } = await supabase
+          .from("items")
+          .select("name")
+          .ilike("name", formData.name)
+
+        if (checkError) throw checkError
+
+        setNameExists(existingItems && existingItems.length > 0)
+      } catch (error) {
+        console.error("Error checking name:", error)
+      } finally {
+        setIsCheckingName(false)
+      }
+    }
+
+    // Debounce the check to avoid too many API calls
+    const timeoutId = setTimeout(checkName, 500)
+    return () => clearTimeout(timeoutId)
+  }, [formData.name])
 
   const fetchCategories = async () => {
     try {
@@ -104,7 +135,16 @@ export default function NewItemPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+                className={nameExists ? "border-yellow-500" : ""}
               />
+              {isCheckingName && (
+                <p className="text-sm text-muted-foreground">Checking name availability...</p>
+              )}
+              {nameExists && (
+                <p className="text-sm text-yellow-600">
+                  An item with this name already exists. You can still create another one.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -113,7 +153,7 @@ export default function NewItemPage() {
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                required
+                placeholder="Enter item description"
               />
             </div>
 

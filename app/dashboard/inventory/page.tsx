@@ -306,6 +306,50 @@ export default function InventoryPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Items</DialogTitle>
+                  <DialogDescription>
+                    Import items from a CSV file
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">CSV Template</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Download the template to see the required format
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={handleExportCSV}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Template
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="importFile">CSV File</Label>
+                    <Input
+                      id="importFile"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleImportCSV}
+                      disabled={isImporting}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button onClick={() => document.getElementById("importFile")?.click()} disabled={isImporting}>
+                    {isImporting ? "Importing..." : "Import"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {error && (
