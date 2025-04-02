@@ -200,10 +200,10 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Reports & Analytics</h2>
+        <p className="text-sm md:text-base text-muted-foreground">
           View inventory statistics and analytics
         </p>
       </div>
@@ -214,42 +214,42 @@ export default function ReportsPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle>Total Items</CardTitle>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Total Items</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total_items}</div>
+          <CardContent className="p-4 md:p-6">
+            <div className="text-xl md:text-2xl font-bold">{stats.total_items}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Low Stock Items</CardTitle>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Low Stock Items</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.low_stock_items}</div>
+          <CardContent className="p-4 md:p-6">
+            <div className="text-xl md:text-2xl font-bold text-yellow-600">{stats.low_stock_items}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Out of Stock</CardTitle>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Out of Stock</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.out_of_stock_items}</div>
+          <CardContent className="p-4 md:p-6">
+            <div className="text-xl md:text-2xl font-bold text-red-600">{stats.out_of_stock_items}</div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="col-span-2">
-          <CardHeader>
-            <CardTitle>Category Distribution</CardTitle>
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        <Card className="col-span-1 md:col-span-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Category Distribution</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
+          <CardContent className="p-4 md:p-6">
+            <div className="h-[250px] md:h-[300px]">
               {stats.category_distribution.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -278,17 +278,24 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-2">
-          <CardHeader>
-            <CardTitle>Top 10 Items by Stock Level</CardTitle>
+        <Card className="col-span-1 md:col-span-2">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">Top 10 Items by Stock Level</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
+          <CardContent className="p-4 md:p-6">
+            <div className="h-[250px] md:h-[300px]">
               {stats.stock_levels.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stats.stock_levels}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      interval={0}
+                      tick={{ fontSize: 12 }}
+                    />
                     <YAxis />
                     <Tooltip />
                     <Bar dataKey="quantity" fill="#8884d8" />
@@ -304,7 +311,9 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      <ThresholdSettings />
+      <div className="mt-6">
+        <ThresholdSettings />
+      </div>
     </div>
   )
 } 
