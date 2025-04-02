@@ -6,18 +6,16 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
   const token = requestUrl.searchParams.get('token')
-  const email = requestUrl.searchParams.get('email')
   const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
-    if (token && email) {
+    if (token) {
       // Handle email confirmation
       const { error } = await supabase.auth.verifyOtp({
         token_hash: token,
-        type: 'email',
-        email: decodeURIComponent(email),
+        type: 'email'
       })
 
       if (error) {
