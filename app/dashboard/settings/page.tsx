@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,13 +8,20 @@ import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
+import { Loader2 } from "lucide-react"
+
+interface ProfileData {
+  full_name: string
+  email: string
+  avatar_url?: string
+}
 
 export default function SettingsPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [profileData, setProfileData] = useState({
+  const [profileData, setProfileData] = useState<ProfileData>({
     full_name: "",
     email: "",
   })
@@ -24,6 +31,28 @@ export default function SettingsPage() {
     confirm_password: "",
   })
 
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  const fetchProfile = async () => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+
+      if (user) {
+        setProfileData({
+          full_name: user.user_metadata?.full_name || "",
+          email: user.email || "",
+          avatar_url: user.user_metadata?.avatar_url,
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error)
+      setError("Failed to load profile data")
+    }
+  }
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -31,11 +60,21 @@ export default function SettingsPage() {
     setSuccess(null)
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { full_name: profileData.full_name }
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+
+      if (!user) {
+        throw new Error("No user found")
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { 
+          full_name: profileData.full_name,
+          avatar_url: profileData.avatar_url
+        }
       })
 
-      if (error) throw error
+      if (updateError) throw updateError
 
       setSuccess("Profile updated successfully")
     } catch (error) {
@@ -88,12 +127,24 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <CardTitle>Profile Information</CardTitle>
             <CardDescription>
-              Update your profile information
+              Update your personal information
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -105,6 +156,7 @@ export default function SettingsPage() {
                   value={profileData.full_name}
                   onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
                   placeholder="Enter your full name"
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -116,9 +168,19 @@ export default function SettingsPage() {
                   disabled
                   className="bg-muted"
                 />
+                <p className="text-sm text-muted-foreground">
+                  Email cannot be changed. Please contact support if you need to update your email.
+                </p>
               </div>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Updating..." : "Update Profile"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Profile"
+                )}
               </Button>
             </form>
           </CardContent>
@@ -141,6 +203,7 @@ export default function SettingsPage() {
                   value={passwordData.current_password}
                   onChange={(e) => setPasswordData({ ...passwordData, current_password: e.target.value })}
                   placeholder="Enter current password"
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -151,6 +214,7 @@ export default function SettingsPage() {
                   value={passwordData.new_password}
                   onChange={(e) => setPasswordData({ ...passwordData, new_password: e.target.value })}
                   placeholder="Enter new password"
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -161,27 +225,23 @@ export default function SettingsPage() {
                   value={passwordData.confirm_password}
                   onChange={(e) => setPasswordData({ ...passwordData, confirm_password: e.target.value })}
                   placeholder="Confirm new password"
+                  disabled={isLoading}
                 />
               </div>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Updating..." : "Update Password"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
               </Button>
             </form>
           </CardContent>
         </Card>
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {success && (
-        <Alert>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
     </div>
   )
 } 
