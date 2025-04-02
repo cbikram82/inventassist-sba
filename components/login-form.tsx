@@ -6,36 +6,32 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { createUser } from "@/lib/user"
+import { supabase } from "@/lib/supabase"
 
-export function SignUpForm() {
+export function LoginForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    name: "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-    setSuccess(null)
 
     try {
-      const result = await createUser(
-        formData.email,
-        formData.password,
-        formData.name
-      )
+      const { error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
 
-      if (result.success) {
-        setSuccess(result.message)
+      if (error) {
+        setError(error.message)
       } else {
-        setError('Failed to create account')
+        router.push('/dashboard')
       }
     } catch (err: any) {
       setError(err.message)
@@ -70,38 +66,21 @@ export function SignUpForm() {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="name">Name (Optional)</Label>
-        <Input
-          id="name"
-          type="text"
-          placeholder="Enter your name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        />
-      </div>
-
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {success && (
-        <Alert>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
-
       <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Creating account..." : "Sign Up"}
+        {isLoading ? "Signing in..." : "Sign In"}
       </Button>
 
       <div className="text-center text-sm">
         <p className="text-muted-foreground">
-          Already have an account?{" "}
-          <a href="/login" className="text-primary hover:underline">
-            Sign in
+          Don't have an account?{" "}
+          <a href="/signup" className="text-primary hover:underline">
+            Sign up
           </a>
         </p>
       </div>
