@@ -2,20 +2,24 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { supabase } from "@/lib/supabase"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function LoginForm() {
-  const router = useRouter()
+interface LoginFormProps {
+  initialError?: string | null
+}
+
+export function LoginForm({ initialError }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  })
+  const [error, setError] = useState<string | null>(initialError)
+  const [isResending, setIsResending] = useState(false)
+  const [email, setEmail] = useState("")
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,66 +28,110 @@ export function LoginForm() {
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+        email,
+        password: (e.target as HTMLFormElement).password.value,
       })
 
       if (error) {
-        setError(error.message)
+        if (error.message.includes("Email not confirmed")) {
+          setError("Please confirm your email before signing in. Check your inbox for the confirmation link.")
+        } else {
+          setError(error.message)
+        }
       } else {
-        router.push('/dashboard')
+        router.push("/dashboard")
+        router.refresh()
       }
-    } catch (err: any) {
-      setError(err.message)
+    } catch (error) {
+      setError("An unexpected error occurred")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      setError("Please enter your email address")
+      return
+    }
+
+    setIsResending(true)
+    setError(null)
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setError("Confirmation email sent! Please check your inbox.")
+      }
+    } catch (error) {
+      setError("An unexpected error occurred")
+    } finally {
+      setIsResending(false)
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="Enter your email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          required
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="Enter your password"
-          value={formData.password}
-          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-          required
-        />
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Signing in..." : "Sign In"}
-      </Button>
-
-      <div className="text-center text-sm">
-        <p className="text-muted-foreground">
-          Don't have an account?{" "}
-          <a href="/signup" className="text-primary hover:underline">
-            Sign up
-          </a>
-        </p>
-      </div>
-    </form>
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle>Welcome back</CardTitle>
+        <CardDescription>Sign in to your account to continue</CardDescription>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="name@example.com"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+            />
+          </div>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-4">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Signing in..." : "Sign in"}
+          </Button>
+          {error?.includes("confirm your email") && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleResendConfirmation}
+              disabled={isResending}
+            >
+              {isResending ? "Sending..." : "Resend confirmation email"}
+            </Button>
+          )}
+          <p className="text-sm text-center text-muted-foreground">
+            Don't have an account?{" "}
+            <Link href="/signup" className="text-primary hover:underline">
+              Sign up
+            </Link>
+          </p>
+        </CardFooter>
+      </form>
+    </Card>
   )
 } 
