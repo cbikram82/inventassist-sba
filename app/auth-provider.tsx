@@ -24,8 +24,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Auto-login with a guest account
-    const autoLogin = async () => {
+    // Initialize authentication
+    const initializeAuth = async () => {
       setAuthState(prev => ({ ...prev, isLoading: true }))
       setError(null)
 
@@ -35,33 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: { session },
         } = await supabase.auth.getSession()
 
-        if (!session) {
-          // If no session exists, perform anonymous sign-in
-          const { data: { user }, error: signInError } = await supabase.auth.signInAnonymously()
-          
-          if (signInError) {
-            console.error("Anonymous sign-in error:", signInError)
-            setError("Failed to initialize authentication")
-            return
-          }
-          
-          if (user) {
-            // Fetch user profile from the database
-            const { user: userProfile, error: profileError } = await getUserProfile(user.id)
-            
-            if (profileError) {
-              console.error("Failed to fetch user profile:", profileError)
-              setError("Failed to load user profile")
-              return
-            }
-
-            setAuthState({
-              isAuthenticated: true,
-              user: userProfile,
-              isLoading: false,
-            })
-          }
-        } else {
+        if (session?.user) {
           // Fetch user profile from the database
           const { user: userProfile, error: profileError } = await getUserProfile(session.user.id)
           
@@ -76,10 +50,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: userProfile,
             isLoading: false,
           })
+        } else {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            isLoading: false,
+          })
         }
-      } catch (error) {
-        console.error("Auto-login failed:", error)
-        setError("Failed to initialize authentication")
+      } catch (error: any) {
+        console.error("Auth initialization failed:", error)
+        setError(`Authentication Error: ${error.message || "Failed to initialize authentication"}`)
         setAuthState({
           isAuthenticated: false,
           user: null,
@@ -88,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    autoLogin()
+    initializeAuth()
 
     // Set up auth state listener
     const {
@@ -137,12 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-red-500">Authentication Error</h1>
           <p className="text-muted-foreground">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Retry
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Retry
+            </button>
+            <p className="text-sm text-muted-foreground">
+              Please sign in to access the application.
+            </p>
+          </div>
         </div>
       </div>
     )
