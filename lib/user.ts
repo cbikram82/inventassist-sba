@@ -4,6 +4,8 @@ import type { User, UserRole } from "@/types/user"
 
 export async function createUser(email: string, password: string, role: UserRole = 'viewer', name?: string) {
   try {
+    console.log('Starting user creation process...')
+    
     // First, create the auth user with role in metadata
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
@@ -21,7 +23,12 @@ export async function createUser(email: string, password: string, role: UserRole
       throw authError
     }
 
-    if (!authData.user) throw new Error("Failed to create user")
+    if (!authData.user) {
+      console.error('No user data returned from auth signup')
+      throw new Error("Failed to create user")
+    }
+
+    console.log('Auth user created successfully:', authData.user.id)
 
     // Then, create the user profile in the users table using the admin client
     const { data: profileData, error: profileError } = await supabaseAdmin
@@ -40,12 +47,18 @@ export async function createUser(email: string, password: string, role: UserRole
 
     if (profileError) {
       console.error('Profile creation error:', profileError)
+      console.error('Profile creation error details:', {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint
+      })
       // If profile creation fails, we should clean up the auth user
       await supabase.auth.signOut()
       throw profileError
     }
 
-    console.log('User created successfully:', profileData)
+    console.log('User profile created successfully:', profileData)
     return { user: authData.user, error: null }
   } catch (error: any) {
     console.error('Error creating user:', error)
