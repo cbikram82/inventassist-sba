@@ -41,7 +41,7 @@ export function SignUpForm() {
         // Create user profile in public.users table
         const { error: profileError } = await supabase
           .from('users')
-          .upsert({
+          .insert({
             id: user.id,
             email: user.email,
             role: 'user',
@@ -56,7 +56,7 @@ export function SignUpForm() {
         }
 
         // Sign in the user immediately
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await supabase.auth.signIn({
           email,
           password,
         })
@@ -93,6 +93,7 @@ export function SignUpForm() {
               type="email"
               placeholder="name@example.com"
               required
+              autoComplete="email"
             />
           </div>
           <div className="space-y-2">
@@ -101,6 +102,7 @@ export function SignUpForm() {
               id="password"
               type="password"
               required
+              autoComplete="new-password"
             />
           </div>
           {error && (
