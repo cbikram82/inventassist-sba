@@ -24,7 +24,6 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
           email,
           role,
           name,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', userId)
         .select()
@@ -47,8 +46,6 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
           email,
           role,
           name,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         },
       ])
       .select()
