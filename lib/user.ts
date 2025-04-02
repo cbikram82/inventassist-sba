@@ -33,21 +33,6 @@ export async function createUser(email: string, password: string, role: UserRole
     // Wait a short moment to ensure the auth user is fully created
     await new Promise(resolve => setTimeout(resolve, 1000))
 
-    // Verify the auth user exists
-    const { data: verifyData, error: verifyError } = await supabaseAdmin
-      .from('auth.users')
-      .select('id')
-      .eq('id', authData.user.id)
-      .single()
-
-    if (verifyError || !verifyData) {
-      console.error('Auth user verification failed:', verifyError)
-      await supabase.auth.signOut()
-      throw new Error('Failed to verify auth user')
-    }
-
-    console.log('Auth user verified:', verifyData)
-
     // Create the user profile in the users table using the admin client
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from('users')
