@@ -1,6 +1,7 @@
 import { supabase } from "./supabase"
 import { supabaseAdmin } from "./supabase-admin"
 import type { User, UserRole } from "@/types/user"
+import { AuthResponse, AuthError } from "@supabase/supabase-js"
 
 async function createUserProfile(userId: string, email: string, role: UserRole, name?: string) {
   try {
@@ -95,7 +96,7 @@ export async function createUser(email: string, password: string, name: string) 
     
     // Step 1: Create auth user
     console.log('Creating auth user...')
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const signUpResponse = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -103,16 +104,16 @@ export async function createUser(email: string, password: string, name: string) 
       },
     })
 
-    if (authError) {
-      console.error('Auth user creation error:', authError)
-      throw authError
+    if (signUpResponse.error) {
+      console.error('Auth user creation error:', signUpResponse.error)
+      throw signUpResponse.error
     }
 
-    if (!authData.user) {
+    if (!signUpResponse.data.user) {
       throw new Error('No user data returned from signup')
     }
 
-    console.log('Auth user created successfully:', authData.user.id)
+    console.log('Auth user created successfully:', signUpResponse.data.user.id)
 
     // Step 2: Wait for auth user to be fully created
     console.log('Waiting for auth user to be fully created...')
@@ -120,29 +121,29 @@ export async function createUser(email: string, password: string, name: string) 
 
     // Step 3: Sign in to establish a session
     console.log('Signing in to establish session...')
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    const signInResponse = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    if (signInError) {
-      console.error('Sign in error:', signInError)
-      throw signInError
+    if (signInResponse.error) {
+      console.error('Sign in error:', signInResponse.error)
+      throw signInResponse.error
     }
 
-    if (!signInData.session) {
+    if (!signInResponse.data.session) {
       throw new Error('No session established after sign in')
     }
 
     console.log('Session established successfully')
 
-    // Step 4: Create user profile
+    // Step 4: Create user profile using the regular client with session
     console.log('Creating user profile...')
     const { data: profileData, error: profileError } = await supabase
       .from('users')
       .insert([
         {
-          id: authData.user.id,
+          id: signUpResponse.data.user.id,
           email,
           role: 'viewer',
           name,
