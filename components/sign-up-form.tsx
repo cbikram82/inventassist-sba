@@ -33,13 +33,16 @@ export function SignUpForm() {
       })
 
       if (signUpError) {
+        console.error('Sign up error:', signUpError)
         setError(signUpError.message)
         return
       }
 
       if (user) {
+        console.log('User created in auth.users:', user.id)
+        
         // Create user profile in public.users table
-        const { error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('users')
           .insert({
             id: user.id,
@@ -48,12 +51,19 @@ export function SignUpForm() {
             name: email.split('@')[0],
             created_at: new Date().toISOString(),
           })
+          .select()
 
         if (profileError) {
-          console.error('Profile creation error:', profileError)
-          setError('Failed to create user profile')
+          console.error('Profile creation error details:', {
+            error: profileError,
+            user: user.id,
+            email: user.email
+          })
+          setError(`Failed to create user profile: ${profileError.message}`)
           return
         }
+
+        console.log('Profile created successfully:', profileData)
 
         // Sign in the user immediately
         const { error: signInError } = await supabase.auth.signIn({
@@ -62,6 +72,7 @@ export function SignUpForm() {
         })
 
         if (signInError) {
+          console.error('Sign in error:', signInError)
           setError(signInError.message)
           return
         }
@@ -71,7 +82,7 @@ export function SignUpForm() {
         router.refresh()
       }
     } catch (error) {
-      console.error('Sign up error:', error)
+      console.error('Unexpected error:', error)
       setError("An unexpected error occurred")
     } finally {
       setIsLoading(false)
