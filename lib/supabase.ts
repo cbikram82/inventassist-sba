@@ -7,14 +7,28 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 console.log('Supabase URL exists:', !!supabaseUrl)
 console.log('Supabase Anon Key exists:', !!supabaseAnonKey)
 
-if (!supabaseUrl) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL')
-}
-
-if (!supabaseAnonKey) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY')
+// Create a dummy client if environment variables are missing
+const createDummyClient = () => {
+  console.warn('Supabase environment variables are missing. Using dummy client.')
+  return {
+    auth: {
+      signUp: async () => ({ error: new Error('Supabase is not configured') }),
+      signIn: async () => ({ error: new Error('Supabase is not configured') }),
+      signOut: async () => ({ error: new Error('Supabase is not configured') }),
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+    from: () => ({
+      select: async () => ({ data: null, error: new Error('Supabase is not configured') }),
+      insert: async () => ({ data: null, error: new Error('Supabase is not configured') }),
+      update: async () => ({ data: null, error: new Error('Supabase is not configured') }),
+      delete: async () => ({ data: null, error: new Error('Supabase is not configured') }),
+    }),
+  }
 }
 
 // Create the Supabase client for database operations only
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createDummyClient()
 

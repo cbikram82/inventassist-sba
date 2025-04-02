@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (error) {
+  if (error && !window.location.pathname.includes('/signup')) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">

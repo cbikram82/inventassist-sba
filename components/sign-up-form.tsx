@@ -32,7 +32,11 @@ export function SignUpForm() {
       )
 
       if (error) {
-        setError(error)
+        if (error.includes('Supabase is not configured')) {
+          setError('The application is not properly configured. Please contact the administrator.')
+        } else {
+          setError(error)
+        }
       } else {
         router.push('/dashboard')
       }
