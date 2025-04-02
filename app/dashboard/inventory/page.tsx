@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 interface Item {
   id: string
@@ -190,7 +191,7 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild>
+          <Button asChild className="bg-primary hover:bg-primary/90">
             <Link href="/dashboard/inventory/new">
               <Plus className="mr-2 h-4 w-4" />
               Add Item
@@ -262,26 +263,35 @@ export default function InventoryPage() {
         </Dialog>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-card">
         <ScrollArea className="h-[calc(100vh-16rem)]">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">Name</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-[100px]">Quantity</TableHead>
-                <TableHead className="w-[150px]">Category</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[200px] font-semibold">Name</TableHead>
+                <TableHead className="font-semibold">Description</TableHead>
+                <TableHead className="w-[100px] font-semibold text-center">Quantity</TableHead>
+                <TableHead className="w-[150px] font-semibold">Category</TableHead>
+                <TableHead className="w-[100px] font-semibold text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredItems.map((item) => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} className="hover:bg-muted/50">
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{item.description}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell className="text-center">
+                    <span className={cn(
+                      "px-2 py-1 rounded-full text-xs font-medium",
+                      item.quantity === 0 ? "bg-red-100 text-red-700" :
+                      item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
+                      "bg-green-100 text-green-700"
+                    )}>
+                      {item.quantity}
+                    </span>
+                  </TableCell>
                   <TableCell>{item.category}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Button variant="ghost" size="sm" asChild>
                       <Link href={`/dashboard/inventory/${item.id}`}>
                         Edit
