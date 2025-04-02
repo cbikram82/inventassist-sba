@@ -119,25 +119,7 @@ export async function createUser(email: string, password: string, name: string) 
     console.log('Waiting for auth user to be fully created...')
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    // Step 3: Sign in to establish a session
-    console.log('Signing in to establish session...')
-    const signInResponse = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (signInResponse.error) {
-      console.error('Sign in error:', signInResponse.error)
-      throw signInResponse.error
-    }
-
-    if (!signInResponse.data.session) {
-      throw new Error('No session established after sign in')
-    }
-
-    console.log('Session established successfully')
-
-    // Step 4: Create user profile using the admin client
+    // Step 3: Create user profile using the admin client
     console.log('Creating user profile...')
     const profileData = await createUserProfile(
       signUpResponse.data.user.id,
