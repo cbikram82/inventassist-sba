@@ -27,9 +27,19 @@ export default function ThresholdSettings() {
 
   const fetchSettings = async () => {
     try {
+      setError(null)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session?.user) throw new Error('No user session')
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        throw new Error('Failed to get user session')
+      }
+      if (!session?.user) {
+        console.error('No user session found')
+        throw new Error('No user session found')
+      }
+
+      console.log('Fetching settings for user:', session.user.id)
 
       const { data, error } = await supabase
         .from('user_settings')
@@ -37,14 +47,32 @@ export default function ThresholdSettings() {
         .eq('user_id', session.user.id)
         .single()
 
-      if (error && error.code !== 'PGRST116') throw error
+      if (error && error.code !== 'PGRST116') {
+        console.error('Settings fetch error:', error)
+        throw new Error('Failed to load settings')
+      }
 
       if (data) {
+        console.log('Settings loaded:', data)
         setSettings(data)
+      } else {
+        console.log('No settings found, using default')
+        // Create default settings if none exist
+        const { error: insertError } = await supabase
+          .from('user_settings')
+          .insert({
+            user_id: session.user.id,
+            low_stock_threshold: 10
+          })
+
+        if (insertError) {
+          console.error('Error creating default settings:', insertError)
+          throw new Error('Failed to create default settings')
+        }
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
-      setError('Failed to load settings')
+      setError(error instanceof Error ? error.message : 'Failed to load settings')
     }
   }
 
@@ -55,8 +83,17 @@ export default function ThresholdSettings() {
 
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session?.user) throw new Error('No user session')
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        throw new Error('Failed to get user session')
+      }
+      if (!session?.user) {
+        console.error('No user session found')
+        throw new Error('No user session found')
+      }
+
+      console.log('Saving settings for user:', session.user.id)
 
       const { error } = await supabase
         .from('user_settings')
@@ -66,12 +103,16 @@ export default function ThresholdSettings() {
           updated_at: new Date().toISOString()
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('Settings save error:', error)
+        throw new Error('Failed to update settings')
+      }
 
+      console.log('Settings saved successfully')
       setSuccess('Threshold settings updated successfully')
     } catch (error) {
       console.error('Error updating settings:', error)
-      setError('Failed to update settings')
+      setError(error instanceof Error ? error.message : 'Failed to update settings')
     } finally {
       setIsLoading(false)
     }

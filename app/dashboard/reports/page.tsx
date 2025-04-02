@@ -52,10 +52,21 @@ export default function ReportsPage() {
 
   const fetchStats = async () => {
     try {
+      setIsLoading(true)
+      setError(null)
+
       // Get current user
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session?.user) throw new Error('No user session')
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        throw new Error('Failed to get user session')
+      }
+      if (!session?.user) {
+        console.error('No user session found')
+        throw new Error('No user session found')
+      }
+
+      console.log('User session:', session.user.id)
 
       // Get user's threshold setting
       const { data: settings, error: settingsError } = await supabase
@@ -64,9 +75,13 @@ export default function ReportsPage() {
         .eq('user_id', session.user.id)
         .single()
 
-      if (settingsError && settingsError.code !== 'PGRST116') throw settingsError
+      if (settingsError && settingsError.code !== 'PGRST116') {
+        console.error('Settings error:', settingsError)
+        throw new Error('Failed to load user settings')
+      }
 
       const threshold = settings?.low_stock_threshold || 10
+      console.log('Threshold:', threshold)
 
       // Get all items
       const { data: items, error: itemsError } = await supabase
@@ -74,7 +89,23 @@ export default function ReportsPage() {
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (itemsError) throw itemsError
+      if (itemsError) {
+        console.error('Items error:', itemsError)
+        throw new Error('Failed to load items')
+      }
+
+      console.log('Items loaded:', items?.length || 0)
+
+      if (!items || items.length === 0) {
+        setStats({
+          total_items: 0,
+          low_stock_items: 0,
+          out_of_stock_items: 0,
+          category_distribution: [],
+          stock_levels: []
+        })
+        return
+      }
 
       // Calculate statistics
       const totalItems = items.length
@@ -101,6 +132,14 @@ export default function ReportsPage() {
           quantity: item.quantity
         }))
 
+      console.log('Stats calculated:', {
+        totalItems,
+        lowStockItems,
+        outOfStockItems,
+        categoryDistribution,
+        stockLevels
+      })
+
       setStats({
         total_items: totalItems,
         low_stock_items: lowStockItems,
@@ -110,7 +149,7 @@ export default function ReportsPage() {
       })
     } catch (error) {
       console.error('Error fetching stats:', error)
-      setError('Failed to load statistics')
+      setError(error instanceof Error ? error.message : 'Failed to load statistics')
     } finally {
       setIsLoading(false)
     }
