@@ -23,20 +23,55 @@ export function SignUpForm() {
     setMessage(null)
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email: (e.target as HTMLFormElement).email.value,
-        password: (e.target as HTMLFormElement).password.value,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      const email = (e.target as HTMLFormElement).email.value
+      const password = (e.target as HTMLFormElement).password.value
+
+      // Sign up the user
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
       })
 
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage("Check your email for the confirmation link!")
+      if (signUpError) {
+        setError(signUpError.message)
+        return
+      }
+
+      if (user) {
+        // Create user profile in public.users table
+        const { error: profileError } = await supabase
+          .from('users')
+          .upsert({
+            id: user.id,
+            email: user.email,
+            role: 'user',
+            name: email.split('@')[0],
+            created_at: new Date().toISOString(),
+          })
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError)
+          setError('Failed to create user profile')
+          return
+        }
+
+        // Sign in the user immediately
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (signInError) {
+          setError(signInError.message)
+          return
+        }
+
+        // Redirect to dashboard
+        router.push('/dashboard')
+        router.refresh()
       }
     } catch (error) {
+      console.error('Sign up error:', error)
       setError("An unexpected error occurred")
     } finally {
       setIsLoading(false)

@@ -5,29 +5,12 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const token = requestUrl.searchParams.get('token')
   const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
-    if (token) {
-      console.log('Verifying email with token:', token)
-      // Handle email confirmation
-      const { data, error } = await supabase.auth.verifyOtp({
-        token_hash: token,
-        type: 'email'
-      })
-
-      if (error) {
-        console.error('Email verification error:', error)
-        return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin))
-      }
-
-      console.log('Email verification successful:', data)
-      // After successful verification, redirect to login
-      return NextResponse.redirect(new URL('/login?message=Email confirmed successfully. Please sign in.', requestUrl.origin))
-    } else if (code) {
+    if (code) {
       // Handle OAuth callback
       const { error } = await supabase.auth.exchangeCodeForSession(code)
       
@@ -37,15 +20,15 @@ export async function GET(request: Request) {
       }
     }
 
-    // Check if email is confirmed
+    // Check if user is authenticated
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError) {
       console.error('User fetch error:', userError)
       return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(userError.message)}`, requestUrl.origin))
     }
 
-    if (!user?.email_confirmed_at) {
-      return NextResponse.redirect(new URL('/login?error=Please confirm your email before signing in', requestUrl.origin))
+    if (!user) {
+      return NextResponse.redirect(new URL('/login?error=Please sign in to continue', requestUrl.origin))
     }
 
     // URL to redirect to after sign in process completes
