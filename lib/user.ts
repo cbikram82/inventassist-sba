@@ -3,7 +3,7 @@ import type { User, UserRole } from "@/types/user"
 
 export async function createUser(email: string, password: string, role: UserRole = 'viewer', name?: string) {
   try {
-    // First, create the auth user
+    // First, create the auth user with role in metadata
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -59,12 +59,21 @@ export async function getUserProfile(userId: string) {
 
 export async function updateUserRole(userId: string, role: UserRole) {
   try {
-    const { error } = await supabase
+    // Update the user's role in the users table
+    const { error: profileError } = await supabase
       .from('users')
       .update({ role })
       .eq('id', userId)
 
-    if (error) throw error
+    if (profileError) throw profileError
+
+    // Update the user's role in their metadata
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: { role }
+    })
+
+    if (metadataError) throw metadataError
+
     return { error: null }
   } catch (error: any) {
     console.error('Error updating user role:', error)
