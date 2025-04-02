@@ -1,38 +1,47 @@
 import { createClient } from "@supabase/supabase-js"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 // Log environment variables (without exposing sensitive values)
-console.log('Environment check:', {
-  supabaseUrl: supabaseUrl ? 'exists' : 'missing',
-  supabaseServiceKey: supabaseServiceKey ? 'exists' : 'missing',
-  supabaseAnonKey: supabaseAnonKey ? 'exists' : 'missing',
-  isServer: typeof window === 'undefined',
-  environment: process.env.NODE_ENV
+console.log('Supabase Admin Client Initialization:', {
+  hasUrl: !!supabaseUrl,
+  hasServiceRoleKey: !!supabaseServiceRoleKey,
+  hasAnonKey: !!supabaseAnonKey,
+  urlLength: supabaseUrl?.length,
+  serviceRoleKeyLength: supabaseServiceRoleKey?.length,
+  anonKeyLength: supabaseAnonKey?.length
 })
 
 if (!supabaseUrl) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL')
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL')
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
 }
 
-if (!supabaseAnonKey) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY')
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY')
+if (!supabaseServiceRoleKey && !supabaseAnonKey) {
+  throw new Error('Missing both SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_ANON_KEY')
 }
 
-// Create the Supabase client with appropriate role
-const supabaseAdmin = createClient(
+// Create the Supabase client with the service role key if available, otherwise fall back to anon key
+export const supabaseAdmin = createClient(
   supabaseUrl,
-  supabaseServiceKey || supabaseAnonKey,
-  supabaseServiceKey ? {
+  supabaseServiceRoleKey || supabaseAnonKey!,
+  {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
+      persistSession: false,
+      detectSessionInUrl: false
     }
-  } : undefined
+  }
 )
 
-export { supabaseAdmin } 
+// Log the client configuration
+console.log('Supabase Admin Client Configuration:', {
+  url: supabaseUrl,
+  usingServiceRole: !!supabaseServiceRoleKey,
+  authOptions: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false
+  }
+}) 

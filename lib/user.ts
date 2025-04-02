@@ -51,6 +51,7 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
       name,
     })
 
+    // Use the service role client to create the profile
     const { data: profileData, error: insertError } = await supabaseAdmin
       .from('users')
       .insert([
