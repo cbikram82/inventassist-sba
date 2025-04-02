@@ -47,7 +47,7 @@ export function SignUpForm() {
           .insert({
             id: user.id,
             email: user.email,
-            role: 'user',
+            role: 'authenticated',
             name: email.split('@')[0],
             created_at: new Date().toISOString(),
           })
