@@ -27,16 +27,17 @@ export default function ThresholdSettings() {
 
   const fetchSettings = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.user) throw new Error('No user session')
 
       const { data, error } = await supabase
         .from('user_settings')
         .select('low_stock_threshold')
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .single()
 
-      if (error) throw error
+      if (error && error.code !== 'PGRST116') throw error
 
       if (data) {
         setSettings(data)
@@ -53,13 +54,14 @@ export default function ThresholdSettings() {
     setSuccess(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user found')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.user) throw new Error('No user session')
 
       const { error } = await supabase
         .from('user_settings')
         .upsert({
-          user_id: user.id,
+          user_id: session.user.id,
           low_stock_threshold: settings.low_stock_threshold,
           updated_at: new Date().toISOString()
         })

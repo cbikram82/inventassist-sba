@@ -52,15 +52,19 @@ export default function ReportsPage() {
 
   const fetchStats = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      // Get current user
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.user) throw new Error('No user session')
 
       // Get user's threshold setting
-      const { data: settings } = await supabase
+      const { data: settings, error: settingsError } = await supabase
         .from('user_settings')
         .select('low_stock_threshold')
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .single()
+
+      if (settingsError && settingsError.code !== 'PGRST116') throw settingsError
 
       const threshold = settings?.low_stock_threshold || 10
 
@@ -68,6 +72,7 @@ export default function ReportsPage() {
       const { data: items, error: itemsError } = await supabase
         .from('items')
         .select('*')
+        .order('created_at', { ascending: false })
 
       if (itemsError) throw itemsError
 
@@ -170,24 +175,30 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.category_distribution}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {stats.category_distribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {stats.category_distribution.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={stats.category_distribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {stats.category_distribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  No category data available
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -198,15 +209,21 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.stock_levels}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="quantity" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
+              {stats.stock_levels.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.stock_levels}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="quantity" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  No stock level data available
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

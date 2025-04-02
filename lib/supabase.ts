@@ -3,6 +3,14 @@ import { createClient } from "@supabase/supabase-js"
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+if (!supabaseUrl) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
+}
+
+if (!supabaseAnonKey) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
+}
+
 // Log environment variables (without exposing sensitive values)
 console.log('Supabase URL exists:', !!supabaseUrl)
 console.log('Supabase Anon Key exists:', !!supabaseAnonKey)
@@ -28,7 +36,11 @@ const createDummyClient = () => {
 }
 
 // Create the Supabase client for database operations only
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : createDummyClient()
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+})
 
