@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -19,12 +19,23 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const [error, setError] = useState<string | null>(initialError)
   const [isResending, setIsResending] = useState(false)
   const [email, setEmail] = useState("")
+  const [message, setMessage] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Handle success message from email confirmation
+  useEffect(() => {
+    const message = searchParams.get("message")
+    if (message) {
+      setMessage(decodeURIComponent(message))
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setMessage(null)
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -57,6 +68,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
 
     setIsResending(true)
     setError(null)
+    setMessage(null)
 
     try {
       const { error } = await supabase.auth.resend({
@@ -67,7 +79,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
       if (error) {
         setError(error.message)
       } else {
-        setError("Confirmation email sent! Please check your inbox.")
+        setMessage("Confirmation email sent! Please check your inbox.")
       }
     } catch (error) {
       setError("An unexpected error occurred")
@@ -106,6 +118,11 @@ export function LoginForm({ initialError }: LoginFormProps) {
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {message && (
+            <Alert>
+              <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
         </CardContent>
