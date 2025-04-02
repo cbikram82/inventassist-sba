@@ -118,49 +118,14 @@ export async function createUser(email: string, password: string, name: string) 
     console.log('Waiting for auth user to be fully created...')
     await new Promise(resolve => setTimeout(resolve, 2000))
 
-    // Step 3: Sign in to establish a session
-    console.log('Signing in to establish session...')
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (signInError) {
-      console.error('Sign in error:', signInError)
-      throw signInError
-    }
-
-    if (!signInData.session) {
-      throw new Error('No session established after sign in')
-    }
-
-    console.log('Session established successfully')
-
-    // Step 4: Create user profile
+    // Step 3: Create user profile using the helper function
     console.log('Creating user profile...')
-    const { data: profileData, error: profileError } = await supabase
-      .from('users')
-      .insert([
-        {
-          id: authData.user.id,
-          email,
-          role: 'viewer',
-          name,
-        },
-      ])
-      .select()
-      .single()
-
-    if (profileError) {
-      console.error('Profile creation error:', profileError)
-      console.error('Profile creation error details:', {
-        code: profileError.code,
-        message: profileError.message,
-        details: profileError.details,
-        hint: profileError.hint
-      })
-      throw profileError
-    }
+    const profileData = await createUserProfile(
+      authData.user.id,
+      email,
+      'viewer',
+      name
+    )
 
     console.log('User profile created successfully:', profileData)
     return profileData
