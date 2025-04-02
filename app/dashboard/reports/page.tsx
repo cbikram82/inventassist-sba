@@ -3,67 +3,108 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
-import { BarChart, LineChart, PieChart } from "lucide-react"
+import { Package, Users, AlertTriangle } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
-interface ReportData {
+interface AnalyticsData {
   totalItems: number
+  totalUsers: number
   lowStockItems: number
-  totalValue: number
-  recentActivity: any[]
+  categoryDistribution: { category: string; count: number }[]
+  recentActivity: { date: string; action: string; item: string }[]
 }
 
 export default function ReportsPage() {
-  const [data, setData] = useState<ReportData>({
-    totalItems: 0,
-    lowStockItems: 0,
-    totalValue: 0,
-    recentActivity: [],
-  })
+  const [data, setData] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [timeRange, setTimeRange] = useState("7d")
 
   useEffect(() => {
-    const fetchReportData = async () => {
-      try {
-        // Get total items
-        const { count: totalItems } = await supabase
-          .from('items')
-          .select('*', { count: 'exact', head: true })
+    fetchAnalytics()
+  }, [timeRange])
 
-        // Get low stock items (less than 10)
-        const { count: lowStockItems } = await supabase
-          .from('items')
-          .select('*', { count: 'exact', head: true })
-          .lt('quantity', 10)
+  const fetchAnalytics = async () => {
+    try {
+      // Fetch total items
+      const { count: totalItems, error: itemsError } = await supabase
+        .from("items")
+        .select("*", { count: "exact", head: true })
 
-        // Get total value
-        const { data: items } = await supabase
-          .from('items')
-          .select('quantity, price')
+      if (itemsError) throw itemsError
 
-        const totalValue = items?.reduce((acc, item) => acc + (item.quantity * item.price), 0) || 0
+      // Fetch total users
+      const { count: totalUsers, error: usersError } = await supabase
+        .from("users")
+        .select("*", { count: "exact", head: true })
 
-        // Get recent activity
-        const { data: recentActivity } = await supabase
-          .from('activity_log')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(5)
+      if (usersError) throw usersError
 
-        setData({
-          totalItems: totalItems || 0,
-          lowStockItems: lowStockItems || 0,
-          totalValue,
-          recentActivity: recentActivity || [],
-        })
-      } catch (error) {
-        console.error('Error fetching report data:', error)
-      } finally {
-        setIsLoading(false)
-      }
+      // Fetch low stock items (quantity < 10)
+      const { count: lowStockItems, error: lowStockError } = await supabase
+        .from("items")
+        .select("*", { count: "exact", head: true })
+        .lt("quantity", 10)
+
+      if (lowStockError) throw lowStockError
+
+      // Fetch category distribution
+      const { data: categoryData, error: categoryError } = await supabase
+        .from("items")
+        .select("category")
+        .order("category")
+
+      if (categoryError) throw categoryError
+
+      const categoryCounts = categoryData.reduce((acc: { [key: string]: number }, item) => {
+        acc[item.category] = (acc[item.category] || 0) + 1
+        return acc
+      }, {})
+
+      const categoryDistribution = Object.entries(categoryCounts).map(([category, count]) => ({
+        category,
+        count
+      }))
+
+      // Fetch recent activity (last 7 days)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      
+      const { data: recentActivity, error: activityError } = await supabase
+        .from("items")
+        .select("name, created_at")
+        .gte("created_at", sevenDaysAgo.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      if (activityError) throw activityError
+
+      const formattedActivity = recentActivity.map(item => ({
+        date: new Date(item.created_at).toLocaleDateString(),
+        action: "Added",
+        item: item.name
+      }))
+
+      setData({
+        totalItems: totalItems || 0,
+        totalUsers: totalUsers || 0,
+        lowStockItems: lowStockItems || 0,
+        categoryDistribution,
+        recentActivity: formattedActivity
+      })
+    } catch (error) {
+      console.error("Error fetching analytics:", error)
+      setError("Failed to load analytics data")
+    } finally {
+      setIsLoading(false)
     }
-
-    fetchReportData()
-  }, [])
+  }
 
   if (isLoading) {
     return (
@@ -73,78 +114,116 @@ export default function ReportsPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-red-500">{error}</div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
-        <p className="text-muted-foreground">
-          View your inventory statistics and trends
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
+          <p className="text-muted-foreground">
+            View your inventory statistics and insights
+          </p>
+        </div>
+        <Select value={timeRange} onValueChange={setTimeRange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select time range" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7d">Last 7 days</SelectItem>
+            <SelectItem value="30d">Last 30 days</SelectItem>
+            <SelectItem value="90d">Last 90 days</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.totalItems}</div>
-            <p className="text-xs text-muted-foreground">
-              Items in inventory
-            </p>
+            <div className="text-2xl font-bold">{data?.totalItems}</div>
           </CardContent>
         </Card>
-
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data?.totalUsers}</div>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
-            <LineChart className="h-4 w-4 text-muted-foreground" />
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.lowStockItems}</div>
-            <p className="text-xs text-muted-foreground">
-              Items with less than 10 units
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <PieChart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${data.totalValue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              Total inventory value
-            </p>
+            <div className="text-2xl font-bold">{data?.lowStockItems}</div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest changes in your inventory
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {data.recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{activity.description}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(activity.created_at).toLocaleString()}
-                  </p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Category Distribution</CardTitle>
+            <CardDescription>Items by category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {data?.categoryDistribution.map((category) => (
+                <div key={category.category} className="flex items-center">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{category.category}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {category.count} items
+                    </div>
+                  </div>
+                  <div className="w-20 h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary"
+                      style={{
+                        width: `${(category.count / (data?.totalItems || 1)) * 100}%`
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest changes in your inventory</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {data?.recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center space-x-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{activity.item}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {activity.action} on {activity.date}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 } 

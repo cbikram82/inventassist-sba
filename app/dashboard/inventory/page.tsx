@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase"
-import { Plus, Search, Pencil, Trash2, FolderPlus } from "lucide-react"
+import { Plus, Search, Pencil, Trash2, FolderPlus, Download, Upload } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -58,6 +58,8 @@ export default function InventoryPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [newCategoryName, setNewCategoryName] = useState("")
   const [isAddingCategory, setIsAddingCategory] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
 
   useEffect(() => {
     fetchItems()
@@ -130,6 +132,66 @@ export default function InventoryPage() {
     }
   }
 
+  const handleExportCSV = () => {
+    const headers = ["Name", "Description", "Category", "Quantity"]
+    const csvContent = [
+      headers.join(","),
+      ...items.map(item => [
+        `"${item.name}"`,
+        `"${item.description}"`,
+        `"${item.category}"`,
+        item.quantity
+      ].join(","))
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `inventory-${new Date().toISOString().split("T")[0]}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setImportFile(file)
+    setIsImporting(true)
+    setError(null)
+
+    try {
+      const text = await file.text()
+      const rows = text.split("\n").map(row => row.split(",").map(cell => cell.trim().replace(/^"|"$/g, "")))
+      const headers = rows[0]
+      const data = rows.slice(1).filter(row => row.length === headers.length)
+
+      const itemsToImport = data.map(row => ({
+        name: row[0],
+        description: row[1],
+        category: row[2],
+        quantity: parseInt(row[3]) || 0
+      }))
+
+      const { error } = await supabase
+        .from("items")
+        .insert(itemsToImport)
+
+      if (error) throw error
+
+      await fetchItems()
+      setImportFile(null)
+    } catch (error) {
+      console.error("Error importing items:", error)
+      setError("Failed to import items. Please check the CSV format.")
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   const filteredItems = items.filter((item) => {
     const matchesSearch = 
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -157,10 +219,33 @@ export default function InventoryPage() {
             Manage your inventory items
           </p>
         </div>
-        <Button onClick={() => router.push("/dashboard/inventory/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Item
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <div className="relative">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              className="hidden"
+              id="import-csv"
+            />
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById("import-csv")?.click()}
+              disabled={isImporting}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {isImporting ? "Importing..." : "Import CSV"}
+            </Button>
+          </div>
+          <Button onClick={() => router.push("/dashboard/inventory/new")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Item
+          </Button>
+        </div>
       </div>
 
       <Card>
