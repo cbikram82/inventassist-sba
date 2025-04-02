@@ -90,7 +90,7 @@ export default function DashboardLayout({
             <div className="flex items-center space-x-4">
               <Link href="/dashboard" className="flex items-center space-x-2">
                 <Image
-                  src="/logo.png"
+                  src="/inventassist-logo.png"
                   alt="InventAssist Logo"
                   width={32}
                   height={32}

@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { supabase } from "@/lib/supabase"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface Item {
   id: string
@@ -16,7 +23,11 @@ interface Item {
   description: string
   category: string
   quantity: number
-  price: number
+}
+
+interface Category {
+  id: string
+  name: string
 }
 
 export default function EditItemPage({ params }: { params: { id: string } }) {
@@ -24,17 +35,18 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
   const [formData, setFormData] = useState<Item>({
     id: "",
     name: "",
     description: "",
     category: "",
     quantity: 0,
-    price: 0,
   })
 
   useEffect(() => {
     fetchItem()
+    fetchCategories()
   }, [params.id])
 
   const fetchItem = async () => {
@@ -54,6 +66,20 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
       setError(error instanceof Error ? error.message : "Failed to load item")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name")
+
+      if (error) throw error
+      setCategories(data || [])
+    } catch (error) {
+      console.error("Error fetching categories:", error)
     }
   }
 
@@ -133,39 +159,33 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
 
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
+              <Select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                required
-              />
+                onValueChange={(value) => setFormData({ ...formData, category: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.name}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="0"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="price">Price</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                  required
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="0"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                required
+              />
             </div>
 
             <div className="flex justify-end space-x-4">
