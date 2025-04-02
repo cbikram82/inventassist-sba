@@ -12,6 +12,7 @@ export function SignUpForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -22,23 +23,19 @@ export function SignUpForm() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setSuccess(null)
 
     try {
-      const { error } = await createUser(
+      const result = await createUser(
         formData.email,
         formData.password,
-        'viewer', // Default role
         formData.name
       )
 
-      if (error) {
-        if (error.includes('Supabase is not configured')) {
-          setError('The application is not properly configured. Please contact the administrator.')
-        } else {
-          setError(error)
-        }
+      if (result.success) {
+        setSuccess(result.message)
       } else {
-        router.push('/dashboard')
+        setError('Failed to create account')
       }
     } catch (err: any) {
       setError(err.message)
@@ -87,6 +84,12 @@ export function SignUpForm() {
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert>
+          <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 

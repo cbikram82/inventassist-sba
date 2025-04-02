@@ -129,7 +129,13 @@ export async function createUser(email: string, password: string, name: string) 
     )
 
     console.log('User profile created successfully:', profileData)
-    return profileData
+
+    // Step 4: Return success with a message about email confirmation
+    return {
+      success: true,
+      message: 'Please check your email to confirm your account. After confirming, you can sign in.',
+      user: profileData
+    }
   } catch (error) {
     console.error('Error creating user:', error)
     throw error
