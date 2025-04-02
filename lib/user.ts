@@ -34,16 +34,7 @@ export async function createUser(email: string, password: string, role: UserRole
   try {
     console.log('Starting user creation process...')
     
-    // Generate a UUID for the user
-    const userId = crypto.randomUUID()
-    console.log('Generated user ID:', userId)
-
-    // First, create the user profile
-    console.log('Creating user profile...')
-    const profileData = await createUserProfile(userId, email, role, name)
-    console.log('User profile created successfully:', profileData)
-
-    // Then, create the auth user with the same ID
+    // First, create the auth user
     console.log('Creating auth user...')
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
@@ -58,15 +49,6 @@ export async function createUser(email: string, password: string, role: UserRole
 
     if (authError) {
       console.error('Auth user creation error:', authError)
-      // If auth user creation fails, we should clean up the profile
-      try {
-        await supabaseAdmin
-          .from('users')
-          .delete()
-          .eq('id', userId)
-      } catch (deleteError) {
-        console.error('Error cleaning up profile after auth failure:', deleteError)
-      }
       throw authError
     }
 
@@ -76,9 +58,29 @@ export async function createUser(email: string, password: string, role: UserRole
     }
 
     console.log('Auth user created successfully:', authData.user.id)
+
+    // Wait a moment to ensure the auth user is fully created
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Then create the user profile
+    console.log('Creating user profile...')
+    const profileData = await createUserProfile(
+      authData.user.id,
+      email,
+      role,
+      name
+    )
+    console.log('User profile created successfully:', profileData)
+
     return { user: authData.user, error: null }
   } catch (error: any) {
     console.error('Error creating user:', error)
+    // If profile creation fails, we should clean up the auth user
+    try {
+      await supabase.auth.signOut()
+    } catch (signOutError) {
+      console.error('Error signing out after profile creation failure:', signOutError)
+    }
     return { user: null, error: error.message }
   }
 }
