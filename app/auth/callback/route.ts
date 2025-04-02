@@ -12,8 +12,9 @@ export async function GET(request: Request) {
     const supabase = createRouteHandlerClient({ cookies })
 
     if (token) {
+      console.log('Verifying email with token:', token)
       // Handle email confirmation
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         token_hash: token,
         type: 'email'
       })
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error.message)}`, requestUrl.origin))
       }
 
+      console.log('Email verification successful:', data)
       // After successful verification, redirect to login
       return NextResponse.redirect(new URL('/login?message=Email confirmed successfully. Please sign in.', requestUrl.origin))
     } else if (code) {
