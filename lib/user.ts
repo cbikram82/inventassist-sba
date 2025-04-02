@@ -20,8 +20,8 @@ export async function createUser(email: string, password: string, role: UserRole
 
     if (!authData.user) throw new Error("Failed to create user")
 
-    // Then, create the user profile in the users table
-    const { error: profileError } = await supabase
+    // Then, create the user profile in the users table using the admin client
+    const { error: profileError } = await supabaseAdmin
       .from('users')
       .insert([
         {
