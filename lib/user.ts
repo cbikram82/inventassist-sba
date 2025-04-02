@@ -30,8 +30,11 @@ export async function createUser(email: string, password: string, role: UserRole
 
     console.log('Auth user created successfully:', authData.user.id)
 
-    // Create the user profile in the users table
-    const { data: profileData, error: profileError } = await supabase
+    // Wait a short moment to ensure the auth user is fully created
+    await new Promise(resolve => setTimeout(resolve, 1000))
+
+    // Create the user profile in the users table using the admin client
+    const { data: profileData, error: profileError } = await supabaseAdmin
       .from('users')
       .insert([
         {
