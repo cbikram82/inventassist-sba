@@ -7,26 +7,36 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu } from "lucide-react"
+import { Menu, LayoutDashboard, Package, Users, Settings, BarChart } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 
 const sidebarNavItems = [
   {
     title: "Overview",
     href: "/dashboard",
+    icon: LayoutDashboard,
   },
   {
     title: "Inventory",
     href: "/dashboard/inventory",
+    icon: Package,
   },
   {
     title: "User Management",
     href: "/dashboard/users",
+    icon: Users,
+  },
+  {
+    title: "Reports",
+    href: "/dashboard/reports",
+    icon: BarChart,
   },
   {
     title: "Settings",
     href: "/dashboard/settings",
+    icon: Settings,
   },
 ]
 
@@ -68,6 +78,7 @@ export default function DashboardLayout({
                       )}
                       onClick={() => setIsOpen(false)}
                     >
+                      <item.icon className="mr-2 h-4 w-4" />
                       {item.title}
                     </Link>
                   ))}
@@ -77,7 +88,16 @@ export default function DashboardLayout({
           </Sheet>
           <div className="flex flex-1 items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-bold">InventAssist</h1>
+              <Link href="/dashboard" className="flex items-center space-x-2">
+                <Image
+                  src="/logo.png"
+                  alt="InventAssist Logo"
+                  width={32}
+                  height={32}
+                  className="rounded-sm"
+                />
+                <span className="text-xl font-bold">InventAssist</span>
+              </Link>
             </div>
             <Button variant="ghost" onClick={handleSignOut}>
               Sign Out
@@ -98,6 +118,7 @@ export default function DashboardLayout({
                     pathname === item.href ? "bg-accent" : "transparent"
                   )}
                 >
+                  <item.icon className="mr-2 h-4 w-4" />
                   {item.title}
                 </Link>
               ))}
