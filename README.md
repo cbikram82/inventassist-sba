@@ -1,7 +1,7 @@
 # InventAssist - Inventory Management System
 # Author - Bikram Chatterjee
 
-A modern, user-friendly inventory management system built with Next.js, TypeScript, and Supabase. This application helps you track and manage inventory items across different locations with a focus on temple and religious organization needs.
+A modern, user-friendly inventory management system built with Next.js, TypeScript, and Supabase. This application helps you track and manage inventory items across different locations with a focus on the association's needs.
 
 ## Features
 
@@ -34,9 +34,7 @@ A modern, user-friendly inventory management system built with Next.js, TypeScri
   - Next.js 15
   - TypeScript
   - Tailwind CSS
-  - Shadcn UI Components
-  - React Hook Form
-
+  - Shadcn UI Components 
 
 - **Backend**
   - Supabase
