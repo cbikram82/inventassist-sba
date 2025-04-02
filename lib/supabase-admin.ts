@@ -19,14 +19,14 @@ if (!supabaseUrl) {
   throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
 }
 
-if (!supabaseServiceRoleKey && !supabaseAnonKey) {
-  throw new Error('Missing both SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_ANON_KEY')
+if (!supabaseAnonKey) {
+  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
 }
 
-// Create the Supabase client with the service role key if available, otherwise fall back to anon key
+// Create the Supabase client with the anon key
 export const supabaseAdmin = createClient(
   supabaseUrl,
-  supabaseServiceRoleKey || supabaseAnonKey!,
+  supabaseAnonKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -39,7 +39,7 @@ export const supabaseAdmin = createClient(
 // Log the client configuration
 console.log('Supabase Admin Client Configuration:', {
   url: supabaseUrl,
-  usingServiceRole: !!supabaseServiceRoleKey,
+  usingServiceRole: false,
   authOptions: {
     autoRefreshToken: false,
     persistSession: false,
