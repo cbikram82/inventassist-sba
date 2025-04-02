@@ -2,10 +2,7 @@ import { supabase } from "./supabase"
 import { supabaseAdmin } from "./supabase-admin"
 import type { User, UserRole } from "@/types/user"
 
-async function createUserProfile(userId: string, email: string, role: UserRole, name?: string, retryCount = 0) {
-  const maxRetries = 3;
-  const retryDelay = 2000; // 2 seconds
-
+async function createUserProfile(userId: string, email: string, role: UserRole, name?: string) {
   try {
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from('users')
@@ -22,24 +19,13 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
       .single()
 
     if (profileError) {
-      console.error(`Profile creation attempt ${retryCount + 1} failed:`, profileError)
-      
-      if (retryCount < maxRetries) {
-        console.log(`Waiting ${retryDelay}ms before retry...`)
-        await new Promise(resolve => setTimeout(resolve, retryDelay))
-        return createUserProfile(userId, email, role, name, retryCount + 1)
-      }
-      
+      console.error('Profile creation error:', profileError)
       throw profileError
     }
 
     return profileData
   } catch (error: any) {
-    if (retryCount < maxRetries) {
-      console.log(`Waiting ${retryDelay}ms before retry...`)
-      await new Promise(resolve => setTimeout(resolve, retryDelay))
-      return createUserProfile(userId, email, role, name, retryCount + 1)
-    }
+    console.error('Error creating profile:', error)
     throw error
   }
 }
@@ -48,7 +34,17 @@ export async function createUser(email: string, password: string, role: UserRole
   try {
     console.log('Starting user creation process...')
     
-    // First, create the auth user with role in metadata
+    // Generate a UUID for the user
+    const userId = crypto.randomUUID()
+    console.log('Generated user ID:', userId)
+
+    // First, create the user profile
+    console.log('Creating user profile...')
+    const profileData = await createUserProfile(userId, email, role, name)
+    console.log('User profile created successfully:', profileData)
+
+    // Then, create the auth user with the same ID
+    console.log('Creating auth user...')
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -62,6 +58,15 @@ export async function createUser(email: string, password: string, role: UserRole
 
     if (authError) {
       console.error('Auth user creation error:', authError)
+      // If auth user creation fails, we should clean up the profile
+      try {
+        await supabaseAdmin
+          .from('users')
+          .delete()
+          .eq('id', userId)
+      } catch (deleteError) {
+        console.error('Error cleaning up profile after auth failure:', deleteError)
+      }
       throw authError
     }
 
@@ -71,30 +76,9 @@ export async function createUser(email: string, password: string, role: UserRole
     }
 
     console.log('Auth user created successfully:', authData.user.id)
-
-    // Wait longer to ensure the auth user is fully created and propagated
-    console.log('Waiting for auth user to propagate...')
-    await new Promise(resolve => setTimeout(resolve, 3000))
-
-    // Create the user profile with retry logic
-    console.log('Attempting to create user profile...')
-    const profileData = await createUserProfile(
-      authData.user.id,
-      email,
-      role,
-      name
-    )
-
-    console.log('User profile created successfully:', profileData)
     return { user: authData.user, error: null }
   } catch (error: any) {
     console.error('Error creating user:', error)
-    // If profile creation fails, we should clean up the auth user
-    try {
-      await supabase.auth.signOut()
-    } catch (signOutError) {
-      console.error('Error signing out after profile creation failure:', signOutError)
-    }
     return { user: null, error: error.message }
   }
 }
