@@ -71,7 +71,7 @@ export function SignUpForm() {
         console.log('Profile created successfully:', profileData)
 
         // Sign in the user immediately
-        const { error: signInError } = await supabase.auth.signIn({
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
