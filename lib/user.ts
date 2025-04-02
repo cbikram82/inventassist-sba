@@ -117,9 +117,21 @@ export async function createUser(email: string, password: string, role: UserRole
 
     console.log('Auth user created successfully:', authData.user.id)
 
-    // Wait longer to ensure the auth user is fully created and propagated
-    console.log('Waiting for auth user to propagate...')
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    // Wait for the session to be established
+    console.log('Waiting for session to be established...')
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError) {
+      console.error('Error getting session:', sessionError)
+      throw sessionError
+    }
+
+    if (!session) {
+      console.error('No session established after signup')
+      throw new Error("Failed to establish session")
+    }
+
+    console.log('Session established successfully')
 
     // Then create or update the user profile
     console.log('Creating/updating user profile...')
