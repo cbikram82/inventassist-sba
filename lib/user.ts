@@ -30,63 +30,36 @@ export async function createUser(email: string, password: string, role: UserRole
 
     console.log('Auth user created successfully:', authData.user.id)
 
-    // Try to create the user profile using the admin client
-    try {
-      const { data: profileData, error: profileError } = await supabaseAdmin
-        .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email,
-            role,
-            name,
-            created_at: new Date().toISOString(),
-          },
-        ])
-        .select()
-        .single()
+    // Create the user profile in the users table
+    const { data: profileData, error: profileError } = await supabase
+      .from('users')
+      .insert([
+        {
+          id: authData.user.id,
+          email,
+          role,
+          name,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single()
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError)
-        console.error('Profile creation error details:', {
-          code: profileError.code,
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint
-        })
-        // If profile creation fails, we should clean up the auth user
-        await supabase.auth.signOut()
-        throw profileError
-      }
-
-      console.log('User profile created successfully:', profileData)
-      return { user: authData.user, error: null }
-    } catch (adminError: any) {
-      console.error('Admin client error:', adminError)
-      // If admin client fails, try with regular client
-      const { data: profileData, error: profileError } = await supabase
-        .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email,
-            role,
-            name,
-            created_at: new Date().toISOString(),
-          },
-        ])
-        .select()
-        .single()
-
-      if (profileError) {
-        console.error('Regular client profile creation error:', profileError)
-        await supabase.auth.signOut()
-        throw profileError
-      }
-
-      console.log('User profile created successfully with regular client:', profileData)
-      return { user: authData.user, error: null }
+    if (profileError) {
+      console.error('Profile creation error:', profileError)
+      console.error('Profile creation error details:', {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint
+      })
+      // If profile creation fails, we should clean up the auth user
+      await supabase.auth.signOut()
+      throw profileError
     }
+
+    console.log('User profile created successfully:', profileData)
+    return { user: authData.user, error: null }
   } catch (error: any) {
     console.error('Error creating user:', error)
     return { user: null, error: error.message }
