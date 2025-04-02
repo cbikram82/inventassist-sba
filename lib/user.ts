@@ -117,17 +117,20 @@ export async function createUser(email: string, password: string, role: UserRole
 
     console.log('Auth user created successfully:', authData.user.id)
 
-    // Wait for the session to be established
-    console.log('Waiting for session to be established...')
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    
-    if (sessionError) {
-      console.error('Error getting session:', sessionError)
-      throw sessionError
+    // Sign in the user to establish a session
+    console.log('Signing in user to establish session...')
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (signInError) {
+      console.error('Error signing in:', signInError)
+      throw signInError
     }
 
-    if (!session) {
-      console.error('No session established after signup')
+    if (!signInData.session) {
+      console.error('No session established after sign in')
       throw new Error("Failed to establish session")
     }
 
