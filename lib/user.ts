@@ -1,4 +1,5 @@
 import { supabase } from "./supabase"
+import { supabaseAdmin } from "./supabase-admin"
 import type { User, UserRole } from "@/types/user"
 
 export async function createUser(email: string, password: string, role: UserRole = 'viewer', name?: string) {
@@ -19,8 +20,8 @@ export async function createUser(email: string, password: string, role: UserRole
 
     if (!authData.user) throw new Error("Failed to create user")
 
-    // Then, create the user profile in the users table
-    const { error: profileError } = await supabase
+    // Then, create the user profile in the users table using admin client
+    const { error: profileError } = await supabaseAdmin
       .from('users')
       .insert([
         {
@@ -31,8 +32,13 @@ export async function createUser(email: string, password: string, role: UserRole
           created_at: new Date().toISOString(),
         },
       ])
+      .select()
+      .single()
 
-    if (profileError) throw profileError
+    if (profileError) {
+      console.error('Profile creation error:', profileError)
+      throw profileError
+    }
 
     return { user: authData.user, error: null }
   } catch (error: any) {
@@ -59,8 +65,8 @@ export async function getUserProfile(userId: string) {
 
 export async function updateUserRole(userId: string, role: UserRole) {
   try {
-    // Update the user's role in the users table
-    const { error: profileError } = await supabase
+    // Update the user's role in the users table using admin client
+    const { error: profileError } = await supabaseAdmin
       .from('users')
       .update({ role })
       .eq('id', userId)
