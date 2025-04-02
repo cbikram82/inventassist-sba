@@ -62,12 +62,12 @@ export function DashboardOverview() {
   const lowStockItems = items.filter((item) => item.quantity <= 10)
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <InventorySummary items={items} />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Low Stock Items</CardTitle>
@@ -77,7 +77,7 @@ export function DashboardOverview() {
             {lowStockItems.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">No low stock items found</div>
             ) : (
-              <div className="h-[300px] overflow-auto">
+              <div className="h-[250px] sm:h-[300px] overflow-auto">
                 <LowStockItems items={items} />
               </div>
             )}
