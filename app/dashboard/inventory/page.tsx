@@ -265,43 +265,51 @@ export default function InventoryPage() {
 
       <div className="rounded-md border bg-card">
         <ScrollArea className="h-[calc(100vh-16rem)]">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="w-[200px] font-semibold">Name</TableHead>
-                <TableHead className="font-semibold">Description</TableHead>
-                <TableHead className="w-[100px] font-semibold text-center">Quantity</TableHead>
-                <TableHead className="w-[150px] font-semibold">Category</TableHead>
-                <TableHead className="w-[100px] font-semibold text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredItems.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/50">
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{item.description}</TableCell>
-                  <TableCell className="text-center">
-                    <span className={cn(
-                      "px-2 py-1 rounded-full text-xs font-medium",
-                      item.quantity === 0 ? "bg-red-100 text-red-700" :
-                      item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
-                      "bg-green-100 text-green-700"
-                    )}>
-                      {item.quantity}
-                    </span>
-                  </TableCell>
-                  <TableCell>{item.category}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/inventory/${item.id}`}>
-                        Edit
-                      </Link>
-                    </Button>
-                  </TableCell>
+          <div className="min-w-[800px]">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-[180px] sm:w-[200px] font-semibold">Name</TableHead>
+                  <TableHead className="w-[200px] sm:w-[300px] font-semibold">Description</TableHead>
+                  <TableHead className="w-[80px] sm:w-[100px] font-semibold text-center">Qty</TableHead>
+                  <TableHead className="w-[120px] sm:w-[150px] font-semibold">Category</TableHead>
+                  <TableHead className="w-[80px] sm:w-[100px] font-semibold text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => (
+                  <TableRow key={item.id} className="hover:bg-muted/50">
+                    <TableCell className="font-medium truncate max-w-[180px] sm:max-w-[200px]">
+                      {item.name}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[200px] sm:max-w-[300px]">
+                      {item.description}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className={cn(
+                        "px-2 py-1 rounded-full text-xs font-medium",
+                        item.quantity === 0 ? "bg-red-100 text-red-700" :
+                        item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
+                        "bg-green-100 text-green-700"
+                      )}>
+                        {item.quantity}
+                      </span>
+                    </TableCell>
+                    <TableCell className="truncate max-w-[120px] sm:max-w-[150px]">
+                      {item.category}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/dashboard/inventory/${item.id}`}>
+                          Edit
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </ScrollArea>
       </div>
     </div>
