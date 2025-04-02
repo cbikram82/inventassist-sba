@@ -41,13 +41,18 @@ export function SignUpForm() {
       if (user) {
         console.log('User created in auth.users:', user.id)
         
+        // Check if this is the first user
+        const { count } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+
         // Create user profile in public.users table
         const { data: profileData, error: profileError } = await supabase
           .from('users')
           .insert({
             id: user.id,
             email: user.email,
-            role: 'authenticated',
+            role: count === 0 ? 'admin' : 'viewer', // Set role as admin for first user
             name: email.split('@')[0],
             created_at: new Date().toISOString(),
           })
