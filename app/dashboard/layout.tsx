@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -12,18 +12,27 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) throw error
+        if (!session) {
+          router.push('/login')
+        }
+      } catch (error) {
+        console.error('Auth check error:', error)
         router.push('/login')
+      } finally {
+        setIsLoading(false)
       }
     }
     checkAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
         router.push('/login')
       }
     })
@@ -32,8 +41,21 @@ export default function DashboardLayout({
   }, [router])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      router.push('/login')
+    } catch (error) {
+      console.error('Sign out error:', error)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (
