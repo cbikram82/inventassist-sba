@@ -31,6 +31,12 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
 
       if (updateError) {
         console.error('Profile update error:', updateError)
+        console.error('Profile update error details:', {
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint
+        })
         throw updateError
       }
 
@@ -38,6 +44,13 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
     }
 
     // If no existing profile, create a new one
+    console.log('Creating new profile with data:', {
+      id: userId,
+      email,
+      role,
+      name,
+    })
+
     const { data: profileData, error: insertError } = await supabaseAdmin
       .from('users')
       .insert([
@@ -65,6 +78,12 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
     return profileData
   } catch (error: any) {
     console.error('Error managing profile:', error)
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    })
     throw error
   }
 }
@@ -101,25 +120,6 @@ export async function createUser(email: string, password: string, role: UserRole
     // Wait longer to ensure the auth user is fully created and propagated
     console.log('Waiting for auth user to propagate...')
     await new Promise(resolve => setTimeout(resolve, 3000))
-
-    // Verify the auth user exists
-    const { data: verifyData, error: verifyError } = await supabaseAdmin
-      .from('auth.users')
-      .select('id')
-      .eq('id', authData.user.id)
-      .single()
-
-    if (verifyError) {
-      console.error('Auth user verification error:', verifyError)
-      throw new Error('Failed to verify auth user')
-    }
-
-    if (!verifyData) {
-      console.error('Auth user not found after creation')
-      throw new Error('Auth user not found after creation')
-    }
-
-    console.log('Auth user verified:', verifyData)
 
     // Then create or update the user profile
     console.log('Creating/updating user profile...')
