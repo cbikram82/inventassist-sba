@@ -137,31 +137,14 @@ export async function createUser(email: string, password: string, name: string) 
 
     console.log('Session established successfully')
 
-    // Step 4: Create user profile using the regular client with session
+    // Step 4: Create user profile using the admin client
     console.log('Creating user profile...')
-    const { data: profileData, error: profileError } = await supabase
-      .from('users')
-      .insert([
-        {
-          id: signUpResponse.data.user.id,
-          email,
-          role: 'viewer',
-          name,
-        },
-      ])
-      .select()
-      .single()
-
-    if (profileError) {
-      console.error('Profile creation error:', profileError)
-      console.error('Profile creation error details:', {
-        code: profileError.code,
-        message: profileError.message,
-        details: profileError.details,
-        hint: profileError.hint
-      })
-      throw profileError
-    }
+    const profileData = await createUserProfile(
+      signUpResponse.data.user.id,
+      email,
+      'viewer',
+      name
+    )
 
     console.log('User profile created successfully:', profileData)
     return profileData
