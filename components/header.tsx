@@ -17,7 +17,7 @@ export function Header() {
               />
               <div>
                 <h1 className="text-2xl font-bold">InventAssist</h1>
-                <p className="text-sm text-muted-foreground">by Nexenovate Ltd</p>
+                <p className="text-sm text-muted-foreground">powered by Nexenovate Ltd</p>
               </div>
             </div>
             <div className="h-10 border-l mx-2 hidden md:block"></div>

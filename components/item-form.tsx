@@ -22,7 +22,7 @@ interface ItemFormProps {
 }
 
 export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Omit<InventoryItem, "id" | "created_at" | "updated_at">>({
     name: initialData?.name || "",
     quantity: initialData?.quantity || 0,
     category: initialData?.category || "",
@@ -40,9 +40,9 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
+    setFormData((prev: Omit<InventoryItem, "id" | "created_at" | "updated_at">) => ({
       ...prev,
       [name]: name === "quantity" ? Number.parseFloat(value) || 0 : value,
     }))
@@ -108,11 +108,7 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
       newErrors.date = "Date is required"
     }
 
-    if (!formData.location) {
-      newErrors.location = "Location is required"
-    }
-
-    if (formData.location === "Home" && !formData.personName.trim()) {
+    if (formData.location === "Home" && !formData.personName?.trim()) {
       newErrors.personName = "Person name is required for home location"
     }
 

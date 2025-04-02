@@ -91,12 +91,12 @@ export function ReportsDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-semibold">Inventory Analytics</h2>
-        <div className="flex items-center">
-          <span className="mr-2 text-sm text-muted-foreground">Time Range:</span>
+        <div className="flex items-center w-full sm:w-auto">
+          <span className="mr-2 text-sm text-muted-foreground whitespace-nowrap">Time Range:</span>
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Select time range" />
             </SelectTrigger>
             <SelectContent>
@@ -109,19 +109,19 @@ export function ReportsDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <InventorySummary items={filteredItems} />
       </div>
 
       <Tabs defaultValue="category" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
           <TabsTrigger value="category">Category Analysis</TabsTrigger>
           <TabsTrigger value="stock">Stock Levels</TabsTrigger>
           <TabsTrigger value="value">Inventory Value</TabsTrigger>
         </TabsList>
 
         <TabsContent value="category" className="space-y-6 mt-6">
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>Category Distribution</CardTitle>
@@ -162,7 +162,7 @@ export function ReportsDashboard() {
               <CardTitle>Inventory Value by Category</CardTitle>
               <CardDescription>Total value of inventory items by category</CardDescription>
             </CardHeader>
-            <CardContent className="h-[400px]">
+            <CardContent className="h-[300px] sm:h-[400px]">
               <InventoryValue items={filteredItems} />
             </CardContent>
           </Card>
