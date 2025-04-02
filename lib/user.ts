@@ -1,11 +1,10 @@
 import { supabase } from "./supabase"
-import { supabaseAdmin } from "./supabase-admin"
 import type { User, UserRole } from "@/types/user"
 
 async function createUserProfile(userId: string, email: string, role: UserRole, name?: string) {
   try {
     // First check if the profile already exists
-    const { data: existingProfile, error: checkError } = await supabaseAdmin
+    const { data: existingProfile, error: checkError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
@@ -18,7 +17,7 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
 
     if (existingProfile) {
       console.log('Profile already exists, updating...')
-      const { data: profileData, error: updateError } = await supabaseAdmin
+      const { data: profileData, error: updateError } = await supabase
         .from('users')
         .update({
           email,
@@ -51,8 +50,8 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
       name,
     })
 
-    // Use the service role client to create the profile
-    const { data: profileData, error: insertError } = await supabaseAdmin
+    // Use the regular client to create the profile
+    const { data: profileData, error: insertError } = await supabase
       .from('users')
       .insert([
         {
