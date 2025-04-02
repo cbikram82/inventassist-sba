@@ -25,6 +25,8 @@ export function InventoryTable({ items, onEdit, onDelete, isLoading }: Inventory
               <TableHead>Category</TableHead>
               <TableHead className="text-right">Quantity</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead>Person Name</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -43,6 +45,12 @@ export function InventoryTable({ items, onEdit, onDelete, isLoading }: Inventory
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-5 w-[80px]" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-[100px]" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-5 w-[120px]" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-5 w-full max-w-[200px]" />
@@ -70,6 +78,8 @@ export function InventoryTable({ items, onEdit, onDelete, isLoading }: Inventory
             <TableHead>Category</TableHead>
             <TableHead className="text-right">Quantity</TableHead>
             <TableHead>Date</TableHead>
+            <TableHead>Location</TableHead>
+            <TableHead>Person Name</TableHead>
             <TableHead>Description</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -77,7 +87,7 @@ export function InventoryTable({ items, onEdit, onDelete, isLoading }: Inventory
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
                 No inventory items found
               </TableCell>
             </TableRow>
@@ -88,6 +98,8 @@ export function InventoryTable({ items, onEdit, onDelete, isLoading }: Inventory
                 <TableCell>{item.category}</TableCell>
                 <TableCell className="text-right">{item.quantity}</TableCell>
                 <TableCell>{item.date ? format(new Date(item.date), "MMM d, yyyy") : "N/A"}</TableCell>
+                <TableCell>{item.location}</TableCell>
+                <TableCell>{item.location === "Home" ? item.personName : "-"}</TableCell>
                 <TableCell className="max-w-xs truncate">{item.description}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
