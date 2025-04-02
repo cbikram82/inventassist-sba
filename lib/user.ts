@@ -53,6 +53,12 @@ async function createUserProfile(userId: string, email: string, role: UserRole, 
 
     if (insertError) {
       console.error('Profile creation error:', insertError)
+      console.error('Profile creation error details:', {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint
+      })
       throw insertError
     }
 
@@ -92,8 +98,28 @@ export async function createUser(email: string, password: string, role: UserRole
 
     console.log('Auth user created successfully:', authData.user.id)
 
-    // Wait a moment to ensure the auth user is fully created
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Wait longer to ensure the auth user is fully created and propagated
+    console.log('Waiting for auth user to propagate...')
+    await new Promise(resolve => setTimeout(resolve, 3000))
+
+    // Verify the auth user exists
+    const { data: verifyData, error: verifyError } = await supabaseAdmin
+      .from('auth.users')
+      .select('id')
+      .eq('id', authData.user.id)
+      .single()
+
+    if (verifyError) {
+      console.error('Auth user verification error:', verifyError)
+      throw new Error('Failed to verify auth user')
+    }
+
+    if (!verifyData) {
+      console.error('Auth user not found after creation')
+      throw new Error('Auth user not found after creation')
+    }
+
+    console.log('Auth user verified:', verifyData)
 
     // Then create or update the user profile
     console.log('Creating/updating user profile...')
@@ -108,6 +134,12 @@ export async function createUser(email: string, password: string, role: UserRole
     return { user: authData.user, error: null }
   } catch (error: any) {
     console.error('Error creating user:', error)
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint
+    })
     // If profile creation fails, we should clean up the auth user
     try {
       await supabase.auth.signOut()
