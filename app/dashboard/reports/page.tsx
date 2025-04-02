@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -36,6 +37,7 @@ interface InventoryStats {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 
 export default function ReportsPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<InventoryStats>({
     total_items: 0,
     low_stock_items: 0,
@@ -47,8 +49,32 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchStats()
+    checkAuth()
   }, [])
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        router.push('/login')
+        return
+      }
+
+      if (!session) {
+        console.log('No session found, redirecting to login')
+        router.push('/login')
+        return
+      }
+
+      // If we have a valid session, fetch the stats
+      fetchStats()
+    } catch (error) {
+      console.error('Auth check error:', error)
+      router.push('/login')
+    }
+  }
 
   const fetchStats = async () => {
     try {
