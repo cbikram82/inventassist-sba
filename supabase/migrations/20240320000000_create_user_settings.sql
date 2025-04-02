@@ -46,4 +46,30 @@ DROP TRIGGER IF EXISTS update_user_settings_updated_at ON public.user_settings;
 CREATE TRIGGER update_user_settings_updated_at
     BEFORE UPDATE ON public.user_settings
     FOR EACH ROW
-    EXECUTE FUNCTION public.update_updated_at_column(); 
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Add RLS policies for items table
+ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view all items" ON public.items;
+DROP POLICY IF EXISTS "Users can insert items" ON public.items;
+DROP POLICY IF EXISTS "Users can update items" ON public.items;
+DROP POLICY IF EXISTS "Users can delete items" ON public.items;
+
+-- Create new policies for items
+CREATE POLICY "Users can view all items"
+    ON public.items FOR SELECT
+    USING (true);
+
+CREATE POLICY "Users can insert items"
+    ON public.items FOR INSERT
+    WITH CHECK (true);
+
+CREATE POLICY "Users can update items"
+    ON public.items FOR UPDATE
+    USING (true);
+
+CREATE POLICY "Users can delete items"
+    ON public.items FOR DELETE
+    USING (true); 

@@ -83,7 +83,8 @@ export default function ReportsPage() {
       const threshold = settings?.low_stock_threshold || 10
       console.log('Threshold:', threshold)
 
-      // Get all items
+      // Get all items with detailed error logging
+      console.log('Fetching items...')
       const { data: items, error: itemsError } = await supabase
         .from('items')
         .select('*')
@@ -91,12 +92,14 @@ export default function ReportsPage() {
 
       if (itemsError) {
         console.error('Items error:', itemsError)
-        throw new Error('Failed to load items')
+        throw new Error(`Failed to load items: ${itemsError.message}`)
       }
 
       console.log('Items loaded:', items?.length || 0)
+      console.log('Sample item:', items?.[0])
 
       if (!items || items.length === 0) {
+        console.log('No items found')
         setStats({
           total_items: 0,
           low_stock_items: 0,
@@ -112,8 +115,19 @@ export default function ReportsPage() {
       const lowStockItems = items.filter(item => item.quantity > 0 && item.quantity <= threshold).length
       const outOfStockItems = items.filter(item => item.quantity === 0).length
 
+      console.log('Calculated counts:', {
+        totalItems,
+        lowStockItems,
+        outOfStockItems,
+        threshold
+      })
+
       // Calculate category distribution
       const categoryCounts = items.reduce((acc: { [key: string]: number }, item) => {
+        if (!item.category) {
+          console.warn('Item without category:', item)
+          return acc
+        }
         acc[item.category] = (acc[item.category] || 0) + 1
         return acc
       }, {})
@@ -122,6 +136,8 @@ export default function ReportsPage() {
         name,
         value
       }))
+
+      console.log('Category distribution:', categoryDistribution)
 
       // Get top 10 items by quantity
       const stockLevels = items
@@ -132,13 +148,7 @@ export default function ReportsPage() {
           quantity: item.quantity
         }))
 
-      console.log('Stats calculated:', {
-        totalItems,
-        lowStockItems,
-        outOfStockItems,
-        categoryDistribution,
-        stockLevels
-      })
+      console.log('Stock levels:', stockLevels)
 
       setStats({
         total_items: totalItems,

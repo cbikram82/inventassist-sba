@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { toast } from "@/components/ui/use-toast"
 
 interface Item {
   id: string
@@ -159,36 +160,58 @@ export default function InventoryPage() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    setImportFile(file)
-    setIsImporting(true)
-    setError(null)
-
     try {
       const text = await file.text()
-      const rows = text.split("\n").map(row => row.split(",").map(cell => cell.trim().replace(/^"|"$/g, "")))
-      const headers = rows[0]
-      const data = rows.slice(1).filter(row => row.length === headers.length)
+      const rows = text.split('\n')
+      const headers = rows[0].split(',').map(h => h.trim())
+      const data = rows.slice(1).map(row => {
+        const values = row.split(',').map(v => v.trim())
+        return headers.reduce((obj, header, index) => {
+          obj[header] = values[index]
+          return obj
+        }, {} as Record<string, string>)
+      })
 
-      const itemsToImport = data.map(row => ({
-        name: row[0],
-        description: row[1],
-        category: row[2],
-        quantity: parseInt(row[3]) || 0
-      }))
+      // Validate required fields
+      const requiredFields = ['name', 'quantity', 'category']
+      const missingFields = requiredFields.filter(field => !headers.includes(field))
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`)
+      }
 
-      const { error } = await supabase
-        .from("items")
-        .insert(itemsToImport)
+      // Process each row
+      for (const row of data) {
+        if (!row.name || !row.quantity || !row.category) continue
 
-      if (error) throw error
+        const { error } = await supabase
+          .from('items')
+          .upsert({
+            name: row.name,
+            quantity: parseInt(row.quantity),
+            category: row.category,
+            description: row.description || '',
+            location: row.location || '',
+            updated_at: new Date().toISOString()
+          })
 
-      await fetchItems()
-      setImportFile(null)
+        if (error) {
+          console.error('Error importing row:', error)
+          throw new Error(`Failed to import row: ${row.name}`)
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Items imported successfully",
+      })
+      fetchItems()
     } catch (error) {
-      console.error("Error importing items:", error)
-      setError("Failed to import items. Please check the CSV format.")
-    } finally {
-      setIsImporting(false)
+      console.error('Error importing CSV:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to import items",
+        variant: "destructive",
+      })
     }
   }
 
@@ -219,9 +242,8 @@ export default function InventoryPage() {
             Manage your inventory items
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={handleExportCSV}>
-            <Download className="mr-2 h-4 w-4" />
+        <div className="flex items-center gap-2">
+          <Button onClick={handleExportCSV}>
             Export CSV
           </Button>
           <div className="relative">
@@ -229,20 +251,16 @@ export default function InventoryPage() {
               type="file"
               accept=".csv"
               onChange={handleImportCSV}
-              className="hidden"
-              id="import-csv"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              id="csv-upload"
             />
-            <Button
-              variant="outline"
-              onClick={() => document.getElementById("import-csv")?.click()}
-              disabled={isImporting}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {isImporting ? "Importing..." : "Import CSV"}
+            <Button asChild>
+              <label htmlFor="csv-upload" className="cursor-pointer">
+                Import CSV
+              </label>
             </Button>
           </div>
-          <Button onClick={() => router.push("/dashboard/inventory/new")}>
-            <Plus className="mr-2 h-4 w-4" />
+          <Button onClick={() => router.push('/dashboard/inventory/new')}>
             Add Item
           </Button>
         </div>
