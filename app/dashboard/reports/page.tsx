@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertTriangle } from "lucide-react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import { cn } from "@/lib/utils"
 
@@ -73,6 +73,12 @@ export default function ReportsPage() {
     }
     return acc
   }, [])
+
+  // Filter low stock items
+  const lowStockItems = items.filter(item => item.quantity <= 10)
+  const outOfStockItems = lowStockItems.filter(item => item.quantity === 0)
+  const lowStockItemsCount = lowStockItems.length
+  const outOfStockItemsCount = outOfStockItems.length
 
   if (isLoading) {
     return (
@@ -146,57 +152,59 @@ export default function ReportsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Items</CardTitle>
+          <CardTitle>Low Stock Awareness</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="w-full overflow-x-auto">
-            <div className="min-w-[800px]">
-              <table className="w-full caption-bottom text-sm">
-                <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium">Description</th>
-                    <th className="h-12 px-4 text-center align-middle font-medium">Category</th>
-                    <th className="h-12 px-4 text-center align-middle font-medium">Quantity</th>
-                  </tr>
-                </thead>
-                <tbody className="[&_tr:last-child]:border-0">
-                  {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-4 text-center text-muted-foreground">
-                        No items found
-                      </td>
-                    </tr>
-                  ) : (
-                    items.map(item => (
-                      <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                        <td className="p-4 align-middle">
-                          <div className="font-medium">{item.name}</div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <div className="text-muted-foreground">{item.description}</div>
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                            {item.category}
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle text-center">
-                          <div className={cn(
-                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                            item.quantity === 0 ? "bg-red-100 text-red-700" :
-                            item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
-                            "bg-green-100 text-green-700"
-                          )}>
-                            {item.quantity}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <h3 className="font-semibold">Low Stock Items</h3>
+                </div>
+                <p className="text-2xl font-bold text-yellow-500 mt-2">{lowStockItemsCount}</p>
+                <p className="text-sm text-muted-foreground mt-1">Items with quantity ≤ 10</p>
+              </div>
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <h3 className="font-semibold">Out of Stock</h3>
+                </div>
+                <p className="text-2xl font-bold text-red-500 mt-2">{outOfStockItemsCount}</p>
+                <p className="text-sm text-muted-foreground mt-1">Items with quantity = 0</p>
+              </div>
             </div>
+
+            {lowStockItems.length > 0 ? (
+              <div className="space-y-4">
+                {lowStockItems.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {item.description}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-muted-foreground">
+                        Category: {item.category}
+                      </div>
+                      <div className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        item.quantity === 0 ? "bg-red-100 text-red-700" :
+                        "bg-yellow-100 text-yellow-700"
+                      )}>
+                        {item.quantity} remaining
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No items are low in stock
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

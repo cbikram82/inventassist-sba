@@ -57,6 +57,7 @@ export default function InventoryPage() {
   const [isAddingCategory, setIsAddingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
   const [userRole, setUserRole] = useState<string>("")
+  const [isAddingItem, setIsAddingItem] = useState(false)
   const [newItem, setNewItem] = useState({
     name: "",
     description: "",
@@ -65,6 +66,7 @@ export default function InventoryPage() {
   })
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
+  const [isDeletingItem, setIsDeletingItem] = useState(false)
 
   useEffect(() => {
     fetchItems()
@@ -355,11 +357,13 @@ export default function InventoryPage() {
     window.URL.revokeObjectURL(url)
   }
 
-  const filteredItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Filter items based on search query and category
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
+    return matchesSearch && matchesCategory
+  })
 
   if (isLoading) {
     return (
@@ -394,7 +398,7 @@ export default function InventoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
+                {categories.map(category => (
                   <SelectItem key={category.id} value={category.name}>
                     {category.name}
                   </SelectItem>
@@ -409,32 +413,24 @@ export default function InventoryPage() {
                     Add Item
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add New Item</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Name</Label>
-                      <Input 
-                        id="name" 
+                      <Input
+                        id="name"
                         placeholder="Enter item name"
                         value={newItem.name}
-                        onChange={handleNameChange}
-                        className={cn(
-                          nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
-                        )}
+                        onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                       />
-                      {nameExists && (
-                        <p className="text-sm text-yellow-600">
-                          An item with this name already exists. Please choose a different name.
-                        </p>
-                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="description">Description</Label>
-                      <Input 
-                        id="description" 
+                      <Input
+                        id="description"
                         placeholder="Enter item description"
                         value={newItem.description}
                         onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
@@ -442,9 +438,9 @@ export default function InventoryPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quantity">Quantity</Label>
-                      <Input 
-                        id="quantity" 
-                        type="number" 
+                      <Input
+                        id="quantity"
+                        type="number"
                         placeholder="Enter quantity"
                         value={newItem.quantity}
                         onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
@@ -452,50 +448,22 @@ export default function InventoryPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <div className="flex gap-2">
-                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category.id} value={category.name}>
-                                {category.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {userRole === 'admin' && (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="icon">
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Add New Category</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="newCategory">Category Name</Label>
-                                  <Input
-                                    id="newCategory"
-                                    placeholder="Enter category name"
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                  />
-                                </div>
-                                <Button onClick={handleAddCategory} className="w-full">
-                                  Add Category
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        )}
-                      </div>
+                      <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map(category => (
+                            <SelectItem key={category.id} value={category.name}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
+                    <Button onClick={handleAddItem} disabled={isAddingItem} className="w-full">
+                      {isAddingItem ? "Adding..." : "Add Item"}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
