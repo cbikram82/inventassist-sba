@@ -124,9 +124,7 @@ export default function UsersPage() {
         throw new Error("Failed to create user profile")
       }
 
-      // Update local state immediately
-      setUsers(prevUsers => [profileData, ...prevUsers])
-
+      // Show success message first
       toast({
         title: "Success",
         description: "User created successfully. They can now log in with their email and password.",
@@ -138,6 +136,14 @@ export default function UsersPage() {
         password: "",
         role: "viewer"
       })
+
+      // Update local state and refresh users list
+      try {
+        await fetchUsers()
+      } catch (error) {
+        console.error('Error refreshing users list:', error)
+        // Don't show error to user since user was created successfully
+      }
     } catch (error) {
       console.error('Error creating user:', error)
       toast({
