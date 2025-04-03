@@ -64,6 +64,17 @@ export default function DashboardLayout({
           return
         }
 
+        // Update last activity
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ last_activity: new Date().toISOString() })
+          .eq('id', session.user.id)
+
+        if (updateError) {
+          console.error('Error updating last activity:', updateError)
+          // Don't throw the error as this is not critical
+        }
+
         const { data: userData } = await supabase
           .from('users')
           .select('role')

@@ -83,9 +83,11 @@ export function LoginForm({ initialError }: LoginFormProps) {
             .update({ last_activity: new Date().toISOString() })
             .eq('id', data.user.id)
 
-          if (updateError) throw updateError
+          if (updateError) {
+            console.error('Error updating last activity:', updateError)
+            // Don't throw the error as this is not critical
+          }
         }
-
         router.push("/dashboard")
         router.refresh()
       }
