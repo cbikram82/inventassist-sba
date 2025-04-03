@@ -69,7 +69,7 @@ export default function UsersPage() {
     try {
       setIsCreatingUser(true)
       
-      // First, create the auth user
+      // Create the auth user first
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: newUser.email,
         password: newUser.password,
@@ -80,6 +80,14 @@ export default function UsersPage() {
 
       if (signUpError) {
         console.error('Sign up error:', signUpError)
+        if (signUpError.message.includes('already registered')) {
+          toast({
+            title: "Error",
+            description: "A user with this email already exists",
+            variant: "destructive",
+          })
+          return
+        }
         throw signUpError
       }
 
@@ -87,7 +95,7 @@ export default function UsersPage() {
         throw new Error("Failed to create user")
       }
 
-      // Then, create the user profile
+      // Create the user profile
       const { data: profileData, error: profileError } = await supabase
         .from('users')
         .insert([{
