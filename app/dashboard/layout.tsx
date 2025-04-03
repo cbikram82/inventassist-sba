@@ -1,99 +1,99 @@
 "use client"
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, LayoutDashboard, Package, BarChart, Settings } from "lucide-react"
-import { supabase, checkValidSession } from "@/lib/supabase"
-import { useRouter } from "next/navigation"
-import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
-
-const sidebarNavItems = [
-  {
-    title: "Overview",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Inventory",
-    href: "/dashboard/inventory",
-    icon: Package,
-  },
-  {
-    title: "Reports",
-    href: "/dashboard/reports",
-    icon: BarChart,
-  },
-  {
-    title: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-  },
-]
+import { Sidebar } from "@/components/sidebar"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
   const router = useRouter()
+  const pathname = usePathname()
+  const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(true)
-  const [userRole, setUserRole] = useState<string>("")
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    return () => setMounted(false)
+  }, [])
 
   useEffect(() => {
     let mounted = true
+    let retryCount = 0
+    const maxRetries = 3
 
     const checkSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        // Get the current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (error) {
-          console.error('Session error:', error)
-          if (mounted) {
-            router.push('/login')
-          }
-          return
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          throw sessionError
         }
 
         if (!session) {
           if (mounted) {
-            router.push('/login')
+            setIsAuthenticated(false)
+            setIsLoading(false)
           }
+          router.push('/login')
           return
         }
 
-        // Update last activity
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ last_activity: new Date().toISOString() })
-          .eq('id', session.user.id)
-
-        if (updateError) {
-          console.error('Error updating last activity:', updateError)
-          // Don't throw the error as this is not critical
-        }
-
-        const { data: userData } = await supabase
+        // Get user role
+        const { data: userData, error: userError } = await supabase
           .from('users')
           .select('role')
           .eq('id', session.user.id)
           .single()
 
+        if (userError) {
+          console.error('User data error:', userError)
+          throw userError
+        }
+
         if (mounted) {
-          setUserRole(userData?.role || '')
+          setIsAuthenticated(true)
+          setUserRole(userData?.role || 'viewer')
           setIsAdmin(userData?.role === 'admin')
           setIsLoading(false)
         }
+
+        // Update last activity
+        try {
+          await supabase
+            .from('users')
+            .update({ last_activity: new Date().toISOString() })
+            .eq('id', session.user.id)
+        } catch (error) {
+          console.error('Error updating last activity:', error)
+        }
+
       } catch (error) {
-        console.error('Session check error:', error)
+        console.error('Auth check error:', error)
         if (mounted) {
+          setIsLoading(false)
+        }
+        
+        // Retry logic
+        if (retryCount < maxRetries) {
+          retryCount++
+          setTimeout(checkSession, 1000 * retryCount) // Exponential backoff
+        } else {
+          if (mounted) {
+            setIsAuthenticated(false)
+            setIsLoading(false)
+          }
           router.push('/login')
         }
       }
@@ -102,28 +102,16 @@ export default function DashboardLayout({
     checkSession()
 
     // Set up session refresh interval
-    const refreshInterval = setInterval(checkSession, 2 * 60 * 1000) // Check every 2 minutes
-
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        if (mounted) {
-          router.push('/login')
-        }
-      } else if (event === 'TOKEN_REFRESHED') {
-        // Session was refreshed successfully
-        console.log('Session refreshed successfully')
-      }
-    })
+    const interval = setInterval(checkSession, 120000) // Check every 2 minutes
 
     return () => {
       mounted = false
-      clearInterval(refreshInterval)
-      subscription.unsubscribe()
+      clearInterval(interval)
     }
   }, [router])
 
-  if (isLoading) {
+  // Show loading state
+  if (!mounted || isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -131,89 +119,17 @@ export default function DashboardLayout({
     )
   }
 
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut()
-      router.push('/login')
-    } catch (error) {
-      console.error('Error signing out:', error)
-      // Force redirect to login even if sign out fails
-      router.push('/login')
-    }
+  // Show error state if not authenticated
+  if (!isAuthenticated) {
+    return null
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center">
-          <div className="flex items-center space-x-4">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Toggle menu</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[240px] sm:w-[280px]">
-                <nav className="flex flex-col space-y-1">
-                  {sidebarNavItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                        pathname === item.href ? "bg-accent" : "transparent"
-                      )}
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {item.title}
-                    </Link>
-                  ))}
-                </nav>
-              </SheetContent>
-            </Sheet>
-            <Link href="/dashboard" className="flex items-center space-x-2">
-              <Image
-                src="/inventassist-logo.png"
-                alt="InventAssist Logo"
-                width={32}
-                height={32}
-                className="rounded-sm"
-              />
-              <span className="text-xl font-bold">InventAssist</span>
-            </Link>
-          </div>
-          <div className="flex flex-1 items-center justify-end space-x-4">
-            <Button variant="ghost" onClick={handleSignOut}>
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
-      <div className="container flex-1">
-        <div className="flex flex-col md:flex-row">
-          <aside className="hidden md:block w-[240px] shrink-0 border-r pr-4 py-4">
-            <nav className="flex flex-col space-y-1">
-              {sidebarNavItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                    pathname === item.href ? "bg-accent" : "transparent"
-                  )}
-                >
-                  <item.icon className="mr-2 h-4 w-4" />
-                  {item.title}
-                </Link>
-              ))}
-            </nav>
-          </aside>
-          <main className="flex-1 py-4 md:pl-8">
-            {children}
-          </main>
-        </div>
-      </div>
+    <div className="flex h-screen">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
     </div>
   )
 } 
