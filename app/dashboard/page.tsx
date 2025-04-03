@@ -33,6 +33,8 @@ interface DashboardStats {
     id: string
     email: string
     created_at: string
+    last_sign_in_at: string | null
+    role: string
   }>
   nextEvent: string
 }
@@ -95,14 +97,27 @@ export default function DashboardPage() {
 
       if (itemsError) throw itemsError
 
-      // Fetch recent users
-      const { data: recentUsers, error: recentError } = await supabase
+      // Fetch all users with their auth data
+      const { data: users, error: usersDataError } = await supabase
         .from('users')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(5)
 
-      if (recentError) throw recentError
+      if (usersDataError) throw usersDataError
+
+      // Get auth data for all users
+      const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
+
+      if (authError) throw authError
+
+      // Combine user data with auth data
+      const usersWithAuth = users.map(user => {
+        const authUser = authData.users.find(auth => auth.id === user.id)
+        return {
+          ...user,
+          last_sign_in_at: authUser?.last_sign_in_at
+        }
+      })
 
       // Fetch next event
       const { data: eventData, error: eventError } = await supabase
@@ -115,7 +130,7 @@ export default function DashboardPage() {
       setStats({
         totalUsers: usersCount || 0,
         totalItems: itemsCount || 0,
-        recentUsers: recentUsers || [],
+        recentUsers: usersWithAuth || [],
         nextEvent: eventData?.next_event || 'No upcoming events'
       })
     } catch (error) {
@@ -360,7 +375,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Recent Users</CardTitle>
+              <CardTitle>Users</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -369,8 +384,21 @@ export default function DashboardPage() {
                     <div>
                       <div className="font-medium">{user.email}</div>
                       <div className="text-sm text-muted-foreground">
-                        Joined {new Date(user.created_at).toLocaleDateString()}
+                        Role: {user.role} • Joined {new Date(user.created_at).toLocaleDateString()}
                       </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                        user.last_sign_in_at ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                      )}>
+                        {user.last_sign_in_at ? "Online" : "Offline"}
+                      </div>
+                      {user.last_sign_in_at && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Last active: {new Date(user.last_sign_in_at).toLocaleString()}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

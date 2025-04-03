@@ -552,13 +552,24 @@ export default function InventoryPage() {
                           </td>
                           <td className="p-4 align-middle text-right">
                             {(userRole === 'admin' || userRole === 'editor') && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleDelete(item.id)}
-                              >
-                                Delete
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  asChild
+                                >
+                                  <Link href={`/dashboard/inventory/${item.id}`}>
+                                    Edit
+                                  </Link>
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDelete(item.id)}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
                             )}
                           </td>
                         </tr>
