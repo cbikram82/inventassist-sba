@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface Item {
   id: string
@@ -50,6 +51,7 @@ export default function InventoryPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [isAddingCategory, setIsAddingCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
@@ -64,30 +66,20 @@ export default function InventoryPage() {
   const [nameExists, setNameExists] = useState(false)
 
   useEffect(() => {
-    checkAuth()
+    fetchItems()
+    fetchCategories()
+    checkUserRole()
   }, [])
 
-  const checkAuth = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
-      const { data: userData, error: userError } = await supabase
+  const checkUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: userData } = await supabase
         .from('users')
         .select('role')
         .eq('id', user.id)
         .single()
-
-      if (userError) throw userError
-      setUserRole(userData.role)
-      fetchItems()
-      fetchCategories()
-    } catch (error) {
-      console.error('Error checking auth:', error)
-      router.push('/login')
+      setUserRole(userData?.role || '')
     }
   }
 
@@ -378,232 +370,176 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-4 p-3 md:space-y-6 md:p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
+      <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Inventory</h2>
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Inventory Management</h2>
           <p className="text-sm text-muted-foreground">
-            Manage your inventory items
+            Manage your inventory items and categories
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Add New Item</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="Enter item name"
-                    value={newItem.name}
-                    onChange={handleNameChange}
-                    className={cn(
-                      nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
-                    )}
-                  />
-                  {nameExists && (
-                    <p className="text-sm text-yellow-600">
-                      An item with this name already exists. Please choose a different name.
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Input 
-                    id="description" 
-                    placeholder="Enter item description"
-                    value={newItem.description}
-                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input 
-                    id="quantity" 
-                    type="number" 
-                    placeholder="Enter quantity"
-                    value={newItem.quantity}
-                    onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <div className="flex gap-2">
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.name}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {(userRole === 'admin' || userRole === 'editor') && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="icon">
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add New Category</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="newCategory">Category Name</Label>
-                              <Input
-                                id="newCategory"
-                                placeholder="Enter category name"
-                                value={newCategoryName}
-                                onChange={(e) => setNewCategoryName(e.target.value)}
-                              />
-                            </div>
-                            <Button onClick={handleAddCategory} className="w-full">
-                              Add Category
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                  </div>
-                </div>
-                <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
-            <FileDown className="mr-2 h-4 w-4" />
-            Export CSV
-          </Button>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto">
-                <FileUp className="mr-2 h-4 w-4" />
-                Import CSV
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Import Items</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>CSV Template</Label>
-                  <Button variant="outline" onClick={handleDownloadTemplate} className="w-full">
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Download Template
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  <Label>Upload CSV</Label>
-                  <Input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleImportCSV}
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <p>Required columns:</p>
-                  <ul className="list-disc list-inside mt-1">
-                    <li>Name</li>
-                    <li>Description</li>
-                    <li>Quantity</li>
-                    <li>Category</li>
-                  </ul>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search items..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-      </div>
-
-      <div className="rounded-md border bg-card">
-        <ScrollArea className="h-[calc(100vh-16rem)]">
-          <div className="w-full">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="font-semibold">Name</TableHead>
-                  <TableHead className="hidden sm:table-cell font-semibold">Description</TableHead>
-                  <TableHead className="font-semibold text-center">Qty</TableHead>
-                  <TableHead className="hidden sm:table-cell font-semibold">Category</TableHead>
-                  <TableHead className="font-semibold text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col">
-                        <span>{item.name}</span>
-                        <span className="sm:hidden text-sm text-muted-foreground">
-                          {item.description}
-                        </span>
-                        <span className="sm:hidden text-sm text-muted-foreground">
-                          {item.category}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {item.description}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <span className={cn(
-                        "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium",
-                        item.quantity === 0 ? "bg-red-100 text-red-700" :
-                        item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
-                        "bg-green-100 text-green-700"
-                      )}>
-                        {item.quantity}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {item.category}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/dashboard/inventory/${item.id}`}>
-                          Edit
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-        </ScrollArea>
+          <div className="flex gap-4">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.name}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(userRole === 'admin' || userRole === 'editor') && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Item
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add New Item</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Name</Label>
+                      <Input 
+                        id="name" 
+                        placeholder="Enter item name"
+                        value={newItem.name}
+                        onChange={handleNameChange}
+                        className={cn(
+                          nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
+                        )}
+                      />
+                      {nameExists && (
+                        <p className="text-sm text-yellow-600">
+                          An item with this name already exists. Please choose a different name.
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Input 
+                        id="description" 
+                        placeholder="Enter item description"
+                        value={newItem.description}
+                        onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quantity">Quantity</Label>
+                      <Input 
+                        id="quantity" 
+                        type="number" 
+                        placeholder="Enter quantity"
+                        value={newItem.quantity}
+                        onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <div className="flex gap-2">
+                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((category) => (
+                              <SelectItem key={category.id} value={category.name}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {userRole === 'admin' && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Add New Category</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="newCategory">Category Name</Label>
+                                  <Input
+                                    id="newCategory"
+                                    placeholder="Enter category name"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                  />
+                                </div>
+                                <Button onClick={handleAddCategory} className="w-full">
+                                  Add Category
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
+                    </div>
+                    <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {filteredItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No items found</p>
+              ) : (
+                filteredItems.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {item.description} • Category: {item.category}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="font-medium">{item.quantity}</div>
+                        <div className="text-sm text-muted-foreground">in stock</div>
+                      </div>
+                      {(userRole === 'admin' || userRole === 'editor') && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(item.id)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
