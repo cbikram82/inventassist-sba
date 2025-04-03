@@ -78,14 +78,17 @@ export default function UsersPage() {
         }
       })
 
-      if (signUpError) throw signUpError
+      if (signUpError) {
+        console.error('Sign up error:', signUpError)
+        throw signUpError
+      }
 
       if (!user || !user.email) {
         throw new Error("Failed to create user")
       }
 
       // Then, create the user profile
-      const { error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('users')
         .insert([{
           id: user.id,
@@ -93,8 +96,11 @@ export default function UsersPage() {
           role: newUser.role,
           created_at: new Date().toISOString()
         }])
+        .select()
+        .single()
 
       if (profileError) {
+        console.error('Profile creation error:', profileError)
         // If profile creation fails, we should clean up the auth user
         await fetch('/api/admin/delete-user', {
           method: 'POST',
@@ -106,14 +112,12 @@ export default function UsersPage() {
         throw profileError
       }
 
-      // Update local state immediately
-      const newUserData: User = {
-        id: user.id,
-        email: user.email,
-        role: newUser.role,
-        created_at: new Date().toISOString()
+      if (!profileData) {
+        throw new Error("Failed to create user profile")
       }
-      setUsers(prevUsers => [newUserData, ...prevUsers])
+
+      // Update local state immediately
+      setUsers(prevUsers => [profileData, ...prevUsers])
 
       toast({
         title: "Success",
