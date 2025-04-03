@@ -34,6 +34,7 @@ interface DashboardStats {
     email: string
     created_at: string
   }>
+  nextEvent: string
 }
 
 export default function DashboardPage() {
@@ -47,6 +48,7 @@ export default function DashboardPage() {
   const [newCategoryName, setNewCategoryName] = useState("")
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [newItem, setNewItem] = useState({
     name: "",
     description: "",
@@ -57,7 +59,20 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchData()
     fetchCategories()
+    checkAdminStatus()
   }, [])
+
+  const checkAdminStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      setIsAdmin(userData?.role === 'admin')
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -87,10 +102,19 @@ export default function DashboardPage() {
 
       if (recentError) throw recentError
 
+      // Fetch next event
+      const { data: eventData, error: eventError } = await supabase
+        .from('system_settings')
+        .select('next_event')
+        .single()
+
+      if (eventError && eventError.code !== 'PGRST116') throw eventError
+
       setStats({
         totalUsers: usersCount || 0,
         totalItems: itemsCount || 0,
-        recentUsers: recentUsers || []
+        recentUsers: recentUsers || [],
+        nextEvent: eventData?.next_event || 'No upcoming events'
       })
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
@@ -237,6 +261,29 @@ export default function DashboardPage() {
     }
   }
 
+  const handleEventChange = async (event: string) => {
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ next_event: event })
+
+      if (error) throw error
+
+      setStats(prev => prev ? { ...prev, nextEvent: event } : null)
+      toast({
+        title: "Success",
+        description: "Next event updated successfully",
+      })
+    } catch (error) {
+      console.error('Error updating next event:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update next event",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -286,10 +333,24 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>System Status</CardTitle>
+              <CardTitle>Next Event</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">Active</div>
+              {isAdmin ? (
+                <Select value={stats?.nextEvent} onValueChange={handleEventChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select next event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sarasawati Puja">Sarasawati Puja</SelectItem>
+                    <SelectItem value="Noboborsho">Noboborsho</SelectItem>
+                    <SelectItem value="Durga Puja">Durga Puja</SelectItem>
+                    <SelectItem value="Kaali Puja">Kaali Puja</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-2xl font-bold text-green-500">{stats?.nextEvent}</div>
+              )}
             </CardContent>
           </Card>
         </div>
