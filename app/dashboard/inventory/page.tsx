@@ -60,6 +60,8 @@ export default function InventoryPage() {
     quantity: "",
     category: ""
   })
+  const [isCheckingName, setIsCheckingName] = useState(false)
+  const [nameExists, setNameExists] = useState(false)
 
   useEffect(() => {
     checkAuth()
@@ -123,7 +125,48 @@ export default function InventoryPage() {
     }
   }
 
+  const checkDuplicateName = async (name: string) => {
+    if (!name.trim()) {
+      setNameExists(false)
+      return
+    }
+
+    try {
+      setIsCheckingName(true)
+      const { data, error } = await supabase
+        .from('items')
+        .select('id')
+        .ilike('name', name)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        throw error
+      }
+
+      setNameExists(!!data)
+    } catch (error) {
+      console.error('Error checking duplicate name:', error)
+    } finally {
+      setIsCheckingName(false)
+    }
+  }
+
+  const handleNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value
+    setNewItem({ ...newItem, name: newName })
+    await checkDuplicateName(newName)
+  }
+
   const handleAddItem = async () => {
+    if (nameExists) {
+      toast({
+        title: "Error",
+        description: "An item with this name already exists. Please choose a different name.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       if (!newItem.name.trim()) {
         toast({
@@ -167,6 +210,7 @@ export default function InventoryPage() {
         category: ""
       })
       setSelectedCategory("")
+      setNameExists(false)
       
       // Refresh items
       fetchItems()
@@ -360,8 +404,16 @@ export default function InventoryPage() {
                     id="name" 
                     placeholder="Enter item name"
                     value={newItem.name}
-                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                    onChange={handleNameChange}
+                    className={cn(
+                      nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
+                    )}
                   />
+                  {nameExists && (
+                    <p className="text-sm text-yellow-600">
+                      An item with this name already exists. Please choose a different name.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
@@ -384,18 +436,48 @@ export default function InventoryPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.name}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {(userRole === 'admin' || userRole === 'editor') && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="icon">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add New Category</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="newCategory">Category Name</Label>
+                              <Input
+                                id="newCategory"
+                                placeholder="Enter category name"
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                              />
+                            </div>
+                            <Button onClick={handleAddCategory} className="w-full">
+                              Add Category
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
                 </div>
                 <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
               </div>
