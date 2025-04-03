@@ -585,7 +585,32 @@ export default function DashboardPage() {
                         </DialogHeader>
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label htmlFor="csvFile">CSV File</Label>
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="csvFile">CSV File</Label>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const template = [
+                                    ['Name', 'Description', 'Quantity', 'Category'],
+                                    ['Example Item', 'This is an example item', '10', 'Electronics'],
+                                    ['Another Item', 'Another example item', '5', 'Furniture']
+                                  ].map(row => row.join(',')).join('\n')
+
+                                  const blob = new Blob([template], { type: 'text/csv' })
+                                  const url = window.URL.createObjectURL(blob)
+                                  const a = document.createElement('a')
+                                  a.href = url
+                                  a.download = 'inventory_template.csv'
+                                  document.body.appendChild(a)
+                                  a.click()
+                                  window.URL.revokeObjectURL(url)
+                                  document.body.removeChild(a)
+                                }}
+                              >
+                                Download Template
+                              </Button>
+                            </div>
                             <Input
                               id="csvFile"
                               type="file"

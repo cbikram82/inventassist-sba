@@ -10,6 +10,8 @@ import { Menu, LayoutDashboard, Package, BarChart, Settings } from "lucide-react
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { useState, useEffect } from "react"
+import { Loader2 } from "lucide-react"
 
 const sidebarNavItems = [
   {
@@ -41,6 +43,76 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string>("")
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) throw error
+        
+        if (!session) {
+          router.push('/login')
+          return
+        }
+
+        // Refresh session if it's close to expiring
+        const expiresAt = new Date(session.expires_at || 0).getTime()
+        const now = new Date().getTime()
+        const timeUntilExpiry = expiresAt - now
+
+        if (timeUntilExpiry < 5 * 60 * 1000) { // If less than 5 minutes until expiry
+          const { data: { session: refreshedSession }, error: refreshError } = 
+            await supabase.auth.refreshSession()
+          
+          if (refreshError) throw refreshError
+        }
+
+        // Get user role
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        setUserRole(userData?.role || '')
+        setIsAdmin(userData?.role === 'admin')
+      } catch (error) {
+        console.error('Session check error:', error)
+        router.push('/login')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkSession()
+
+    // Set up session refresh interval
+    const refreshInterval = setInterval(checkSession, 4 * 60 * 1000) // Check every 4 minutes
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push('/login')
+      }
+    })
+
+    return () => {
+      clearInterval(refreshInterval)
+      subscription.unsubscribe()
+    }
+  }, [router])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()

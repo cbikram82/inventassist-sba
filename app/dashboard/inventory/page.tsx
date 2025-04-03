@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 interface Item {
   id: string
@@ -508,76 +509,69 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
-              <div className="relative w-full overflow-auto">
-                <table className="w-full caption-bottom text-sm">
-                  <thead className="[&_tr]:border-b">
-                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                      <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
-                      <th className="h-12 px-4 text-left align-middle font-medium">Description</th>
-                      <th className="h-12 px-4 text-center align-middle font-medium">Category</th>
-                      <th className="h-12 px-4 text-center align-middle font-medium">Quantity</th>
-                      <th className="h-12 px-4 text-right align-middle font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="[&_tr:last-child]:border-0">
-                    {filteredItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-4 text-center text-muted-foreground">
+              <ScrollArea className="h-[calc(100vh-16rem)]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">Name</TableHead>
+                      <TableHead className="hidden md:table-cell">Description</TableHead>
+                      <TableHead className="w-[100px]">Category</TableHead>
+                      <TableHead className="w-[100px] text-right">Quantity</TableHead>
+                      <TableHead className="w-[100px] text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredItems.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="hidden md:table-cell max-w-[300px] truncate">
+                          {item.description}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="whitespace-nowrap">
+                            {item.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={cn(
+                            "font-medium",
+                            item.quantity === 0 ? "text-red-500" :
+                            item.quantity <= 10 ? "text-yellow-500" :
+                            "text-green-500"
+                          )}>
+                            {item.quantity}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(userRole === 'admin' || userRole === 'editor') && (
+                            <div className="flex justify-end gap-2">
+                              <Link href={`/dashboard/inventory/${item.id}`}>
+                                <Button variant="outline" size="sm">
+                                  Edit
+                                </Button>
+                              </Link>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(item.id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredItems.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8">
                           No items found
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredItems.map(item => (
-                        <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                          <td className="p-4 align-middle">
-                            <div className="font-medium">{item.name}</div>
-                          </td>
-                          <td className="p-4 align-middle">
-                            <div className="text-muted-foreground">{item.description}</div>
-                          </td>
-                          <td className="p-4 align-middle text-center">
-                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                              {item.category}
-                            </div>
-                          </td>
-                          <td className="p-4 align-middle text-center">
-                            <div className={cn(
-                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                              item.quantity === 0 ? "bg-red-100 text-red-700" :
-                              item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
-                              "bg-green-100 text-green-700"
-                            )}>
-                              {item.quantity}
-                            </div>
-                          </td>
-                          <td className="p-4 align-middle text-right">
-                            {(userRole === 'admin' || userRole === 'editor') && (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  asChild
-                                >
-                                  <Link href={`/dashboard/inventory/${item.id}`}>
-                                    Edit
-                                  </Link>
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDelete(item.id)}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
             </div>
           </CardContent>
         </Card>
