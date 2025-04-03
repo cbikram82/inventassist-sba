@@ -39,8 +39,22 @@ export default function ReportsPage() {
         .eq('user_id', user.id)
         .single()
 
-      if (settingsError) throw settingsError
-      setSettings(settingsData)
+      if (settingsError) {
+        // If no settings exist, create default settings
+        const { data: newSettings, error: insertError } = await supabase
+          .from('user_settings')
+          .insert([{
+            user_id: user.id,
+            low_stock_threshold: 10
+          }])
+          .select()
+          .single()
+
+        if (insertError) throw insertError
+        setSettings(newSettings)
+      } else {
+        setSettings(settingsData)
+      }
 
       // Fetch items
       const { data: itemsData, error: itemsError } = await supabase
@@ -125,6 +139,11 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{lowStockItems.length}</div>
+              {settings && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Threshold: {settings.low_stock_threshold}
+                </p>
+              )}
             </CardContent>
           </Card>
 
