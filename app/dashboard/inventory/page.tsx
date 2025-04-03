@@ -153,44 +153,49 @@ export default function InventoryPage() {
   }
 
   const handleAddItem = async () => {
-    if (nameExists) {
+    if (!newItem.name || !newItem.description || !newItem.quantity || !selectedCategory) {
       toast({
         title: "Error",
-        description: "An item with this name already exists. Please choose a different name.",
+        description: "Please fill in all fields",
         variant: "destructive",
       })
       return
     }
 
     try {
-      if (!newItem.name.trim()) {
+      setIsAddingItem(true)
+      setIsCheckingName(true)
+
+      // Check if item name already exists
+      const { data: existingItems, error: checkError } = await supabase
+        .from('items')
+        .select('name')
+        .ilike('name', newItem.name)
+
+      if (checkError) throw checkError
+
+      if (existingItems && existingItems.length > 0) {
+        setNameExists(true)
         toast({
           title: "Error",
-          description: "Item name is required",
+          description: "An item with this name already exists",
           variant: "destructive",
         })
         return
       }
 
-      if (!selectedCategory) {
-        toast({
-          title: "Error",
-          description: "Please select a category",
-          variant: "destructive",
-        })
-        return
-      }
-
-      const { error } = await supabase
+      // Add the new item
+      const { error: insertError } = await supabase
         .from('items')
         .insert([{
           name: newItem.name,
           description: newItem.description,
-          quantity: parseInt(newItem.quantity) || 0,
-          category: selectedCategory
+          quantity: parseInt(newItem.quantity),
+          category: selectedCategory,
+          created_at: new Date().toISOString()
         }])
 
-      if (error) throw error
+      if (insertError) throw insertError
 
       toast({
         title: "Success",
@@ -207,7 +212,7 @@ export default function InventoryPage() {
       setSelectedCategory("")
       setNameExists(false)
       
-      // Refresh items
+      // Refresh items list
       fetchItems()
     } catch (error) {
       console.error('Error adding item:', error)
@@ -216,6 +221,9 @@ export default function InventoryPage() {
         description: error instanceof Error ? error.message : "Failed to add item",
         variant: "destructive",
       })
+    } finally {
+      setIsAddingItem(false)
+      setIsCheckingName(false)
     }
   }
 

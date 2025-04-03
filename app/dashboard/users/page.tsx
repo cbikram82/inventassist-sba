@@ -194,14 +194,14 @@ export default function UsersPage() {
 
       if (authError) throw authError
 
+      // Update local state immediately
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDelete.id))
+      setUserToDelete(null)
+
       toast({
         title: "Success",
         description: "User deleted successfully",
       })
-
-      // Refresh users list
-      fetchUsers()
-      setUserToDelete(null)
     } catch (error) {
       console.error('Error deleting user:', error)
       toast({
