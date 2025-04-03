@@ -15,6 +15,7 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
   const { toast } = useToast()
   const [threshold, setThreshold] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     fetchSettings()
@@ -22,6 +23,7 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
 
   const fetchSettings = async () => {
     try {
+      setIsLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -31,21 +33,21 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
         .eq('user_id', user.id)
         .single()
 
-      if (error) throw error
-
-      if (data) {
-        setThreshold(data.low_stock_threshold?.toString() || "10")
-      } else {
-        // Create default settings if none exist
-        const { error: insertError } = await supabase
+      if (error) {
+        // If no settings exist, create default settings
+        const { data: newSettings, error: insertError } = await supabase
           .from('user_settings')
           .insert([{
             user_id: user.id,
             low_stock_threshold: 10
           }])
-        
+          .select()
+          .single()
+
         if (insertError) throw insertError
-        setThreshold("10")
+        setThreshold(newSettings.low_stock_threshold.toString())
+      } else {
+        setThreshold(data.low_stock_threshold.toString())
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -61,6 +63,7 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
 
   const handleSave = async () => {
     try {
+      setIsSaving(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -97,6 +100,8 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
         description: "Failed to save settings",
         variant: "destructive",
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -116,8 +121,11 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
             value={threshold}
             onChange={(e) => setThreshold(e.target.value)}
             placeholder="Enter threshold"
+            disabled={isSaving}
           />
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
         </div>
         <p className="text-sm text-muted-foreground">
           Items with quantity below this number will be considered low stock

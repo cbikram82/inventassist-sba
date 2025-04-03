@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -18,24 +19,57 @@ interface User {
 }
 
 export default function UsersPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedRole, setSelectedRole] = useState<string>("")
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    fetchUsers()
+    checkAdminAccess()
   }, [])
+
+  const checkAdminAccess = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+      if (error) throw error
+
+      if (data.role !== 'admin') {
+        toast({
+          title: "Access Denied",
+          description: "Only administrators can access this page",
+          variant: "destructive",
+        })
+        router.push('/dashboard')
+        return
+      }
+
+      setIsAdmin(true)
+      fetchUsers()
+    } catch (error) {
+      console.error('Error checking admin access:', error)
+      router.push('/dashboard')
+    }
+  }
 
   const fetchUsers = async () => {
     try {
       setIsLoading(true)
       setError(null)
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user found')
 
       const { data, error } = await supabase
         .from('users')
@@ -83,6 +117,10 @@ export default function UsersPage() {
     return matchesSearch && matchesRole
   })
 
+  if (!isAdmin) {
+    return null
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -107,7 +145,7 @@ export default function UsersPage() {
         <div>
           <h2 className="text-xl md:text-3xl font-bold tracking-tight">User Management</h2>
           <p className="text-sm text-muted-foreground">
-            Manage user accounts and roles
+            Manage user accounts and roles (Admin Only)
           </p>
         </div>
 
@@ -169,4 +207,5 @@ export default function UsersPage() {
       </div>
     </div>
   )
+} 
 } 
