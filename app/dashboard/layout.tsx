@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, LayoutDashboard, Package, BarChart, Settings } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { supabase, checkValidSession } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useState, useEffect } from "react"
@@ -50,28 +50,20 @@ export default function DashboardLayout({
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const hasValidSession = await checkValidSession()
         
-        if (error) throw error
-        
+        if (!hasValidSession) {
+          router.push('/login')
+          return
+        }
+
+        // Get user role
+        const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
           router.push('/login')
           return
         }
 
-        // Refresh session if it's close to expiring
-        const expiresAt = new Date(session.expires_at || 0).getTime()
-        const now = new Date().getTime()
-        const timeUntilExpiry = expiresAt - now
-
-        if (timeUntilExpiry < 5 * 60 * 1000) { // If less than 5 minutes until expiry
-          const { data: { session: refreshedSession }, error: refreshError } = 
-            await supabase.auth.refreshSession()
-          
-          if (refreshError) throw refreshError
-        }
-
-        // Get user role
         const { data: userData } = await supabase
           .from('users')
           .select('role')
@@ -91,12 +83,15 @@ export default function DashboardLayout({
     checkSession()
 
     // Set up session refresh interval
-    const refreshInterval = setInterval(checkSession, 4 * 60 * 1000) // Check every 4 minutes
+    const refreshInterval = setInterval(checkSession, 2 * 60 * 1000) // Check every 2 minutes
 
     // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
         router.push('/login')
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Session was refreshed successfully
+        console.log('Session refreshed successfully')
       }
     })
 
@@ -115,8 +110,14 @@ export default function DashboardLayout({
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
+    try {
+      await supabase.auth.signOut()
+      router.push('/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      // Force redirect to login even if sign out fails
+      router.push('/login')
+    }
   }
 
   return (

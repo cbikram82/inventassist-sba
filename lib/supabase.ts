@@ -31,7 +31,7 @@ const createDummyClient = () => {
   }
 }
 
-// Create the Supabase client for database operations only
+// Create the Supabase client with improved session handling
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -40,18 +40,31 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: {
       getItem: (key) => {
         if (typeof window !== 'undefined') {
-          return localStorage.getItem(key)
+          try {
+            return localStorage.getItem(key)
+          } catch (error) {
+            console.error('Error reading from localStorage:', error)
+            return null
+          }
         }
         return null
       },
       setItem: (key, value) => {
         if (typeof window !== 'undefined') {
-          localStorage.setItem(key, value)
+          try {
+            localStorage.setItem(key, value)
+          } catch (error) {
+            console.error('Error writing to localStorage:', error)
+          }
         }
       },
       removeItem: (key) => {
         if (typeof window !== 'undefined') {
-          localStorage.removeItem(key)
+          try {
+            localStorage.removeItem(key)
+          } catch (error) {
+            console.error('Error removing from localStorage:', error)
+          }
         }
       },
     },
@@ -69,4 +82,33 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     },
   },
 })
+
+// Helper function to check if we have a valid session
+export const checkValidSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    
+    if (error) {
+      console.error('Session error:', error)
+      return false
+    }
+
+    if (!session) {
+      return false
+    }
+
+    // Check if the session is expired
+    const expiresAt = new Date(session.expires_at || 0).getTime()
+    const now = new Date().getTime()
+    
+    if (expiresAt <= now) {
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error checking session:', error)
+    return false
+  }
+}
 
