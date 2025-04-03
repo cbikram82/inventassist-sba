@@ -108,11 +108,19 @@ export default function DashboardPage() {
       // Get current user's session
       const { data: { session } } = await supabase.auth.getSession()
 
-      // Get online status based on last activity
+      // Get online status based on last activity and current session
       const usersWithStatus = users.map(user => ({
         ...user,
-        last_sign_in_at: user.last_activity || null
+        last_sign_in_at: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
       }))
+
+      // Update current user's last activity
+      if (session?.user?.id) {
+        await supabase
+          .from('users')
+          .update({ last_activity: new Date().toISOString() })
+          .eq('id', session.user.id)
+      }
 
       // Fetch next event
       const { data: eventData, error: eventError } = await supabase
@@ -514,6 +522,118 @@ export default function DashboardPage() {
                   <Button variant="outline" className="w-full" onClick={() => router.push('/dashboard/users')}>
                     Manage Users
                   </Button>
+                )}
+                {(isAdmin || userRole === 'editor') && (
+                  <>
+                    <Button 
+                      variant="outline" 
+                      className="w-full" 
+                      onClick={async () => {
+                        try {
+                          const { data, error } = await supabase
+                            .from('items')
+                            .select('*')
+                            .order('name')
+
+                          if (error) throw error
+
+                          const csv = [
+                            ['Name', 'Description', 'Quantity', 'Category'],
+                            ...data.map(item => [
+                              item.name,
+                              item.description,
+                              item.quantity,
+                              item.category
+                            ])
+                          ].map(row => row.join(',')).join('\n')
+
+                          const blob = new Blob([csv], { type: 'text/csv' })
+                          const url = window.URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = 'inventory.csv'
+                          document.body.appendChild(a)
+                          a.click()
+                          window.URL.revokeObjectURL(url)
+                          document.body.removeChild(a)
+
+                          toast({
+                            title: "Success",
+                            description: "Inventory exported successfully",
+                          })
+                        } catch (error) {
+                          console.error('Error exporting inventory:', error)
+                          toast({
+                            title: "Error",
+                            description: "Failed to export inventory",
+                            variant: "destructive",
+                          })
+                        }
+                      }}
+                    >
+                      Export CSV
+                    </Button>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                          Import CSV
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Import Inventory</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="csvFile">CSV File</Label>
+                            <Input
+                              id="csvFile"
+                              type="file"
+                              accept=".csv"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+
+                                try {
+                                  const text = await file.text()
+                                  const rows = text.split('\n').map(row => row.split(','))
+                                  const headers = rows[0]
+                                  const data = rows.slice(1).filter(row => row.length === headers.length)
+
+                                  const items = data.map(row => ({
+                                    name: row[0],
+                                    description: row[1],
+                                    quantity: parseInt(row[2]) || 0,
+                                    category: row[3]
+                                  }))
+
+                                  const { error } = await supabase
+                                    .from('items')
+                                    .upsert(items, { onConflict: 'name' })
+
+                                  if (error) throw error
+
+                                  toast({
+                                    title: "Success",
+                                    description: "Inventory imported successfully",
+                                  })
+
+                                  fetchData()
+                                } catch (error) {
+                                  console.error('Error importing inventory:', error)
+                                  toast({
+                                    title: "Error",
+                                    description: "Failed to import inventory. Please check the file format.",
+                                    variant: "destructive",
+                                  })
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </>
                 )}
               </div>
             </CardContent>
