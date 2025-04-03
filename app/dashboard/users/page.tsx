@@ -56,36 +56,76 @@ export default function UsersPage() {
     }
   }
 
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsCreatingUser(true)
-    setError(null)
+  const handleCreateUser = async () => {
+    if (!newUser.email || !newUser.password) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
-      // Create the user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      setIsCreatingUser(true)
+      
+      // Create the auth user first
+      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: newUser.email,
         password: newUser.password,
-        email_confirm: true,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
       })
 
-      if (authError) throw authError
+      if (signUpError) {
+        console.error('Sign up error:', signUpError)
+        if (signUpError.message.includes('already registered')) {
+          toast({
+            title: "Error",
+            description: "A user with this email already exists",
+            variant: "destructive",
+          })
+          return
+        }
+        throw signUpError
+      }
 
-      // Create the user profile in the users table
-      const { error: profileError } = await supabase
+      if (!user || !user.email) {
+        throw new Error("Failed to create user")
+      }
+
+      // Create the user profile
+      const { data: profileData, error: profileError } = await supabase
         .from('users')
-        .insert([
-          {
-            id: authData.user.id,
-            email: authData.user.email,
-            role: newUser.role,
-            created_at: new Date().toISOString(),
-            last_activity: new Date().toISOString()
+        .insert([{
+          id: user.id,
+          email: user.email,
+          role: newUser.role,
+          created_at: new Date().toISOString(),
+          last_activity: new Date().toISOString()
+        }])
+        .select()
+        .single()
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError)
+        // If profile creation fails, we should clean up the auth user
+        await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        ])
+          body: JSON.stringify({ userId: user.id }),
+        })
+        throw profileError
+      }
 
-      if (profileError) throw profileError
+      if (!profileData) {
+        throw new Error("Failed to create user profile")
+      }
 
+      // Show success message
       toast({
         title: "Success",
         description: "User created successfully. Please log in with the new credentials.",
@@ -105,7 +145,12 @@ export default function UsersPage() {
 
     } catch (error) {
       console.error('Error creating user:', error)
-      setError(error instanceof Error ? error.message : 'Failed to create user')
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create user",
+        variant: "destructive",
+      })
+    } finally {
       setIsCreatingUser(false)
     }
   }
