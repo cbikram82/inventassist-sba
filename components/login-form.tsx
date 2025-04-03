@@ -16,7 +16,7 @@ interface LoginFormProps {
 
 export function LoginForm({ initialError }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(initialError)
+  const [error, setError] = useState<string | null>(initialError || null)
   const [isResending, setIsResending] = useState(false)
   const [email, setEmail] = useState("")
   const [message, setMessage] = useState<string | null>(null)
@@ -38,7 +38,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
     setMessage(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password: (e.target as HTMLFormElement).password.value,
       })
@@ -49,12 +49,49 @@ export function LoginForm({ initialError }: LoginFormProps) {
         } else {
           setError(error.message)
         }
-      } else {
+      } else if (data.user) {
+        // Check if user exists in the users table
+        const { data: existingUser, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.user.id)
+          .single()
+
+        if (userError && userError.code !== 'PGRST116') {
+          throw userError
+        }
+
+        if (!existingUser) {
+          // Create new user record if it doesn't exist
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert([
+              {
+                id: data.user.id,
+                email: data.user.email,
+                role: 'viewer', // Default role
+                created_at: new Date().toISOString(),
+                last_activity: new Date().toISOString()
+              }
+            ])
+
+          if (insertError) throw insertError
+        } else {
+          // Update last activity for existing user
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ last_activity: new Date().toISOString() })
+            .eq('id', data.user.id)
+
+          if (updateError) throw updateError
+        }
+
         router.push("/dashboard")
         router.refresh()
       }
     } catch (error) {
-      setError("An unexpected error occurred")
+      console.error('Sign in error:', error)
+      setError(error instanceof Error ? error.message : "An unexpected error occurred")
     } finally {
       setIsLoading(false)
     }
@@ -105,6 +142,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
             />
           </div>
           <div className="space-y-2">
@@ -113,6 +151,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
               id="password"
               type="password"
               required
+              autoComplete="current-password"
             />
           </div>
           {error && (
