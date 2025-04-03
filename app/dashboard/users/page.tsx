@@ -358,7 +358,6 @@ export default function UsersPage() {
                             <Button
                               variant="destructive"
                               size="icon"
-                              onClick={() => setUserToDelete(user)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -379,7 +378,10 @@ export default function UsersPage() {
                               </Button>
                               <Button
                                 variant="destructive"
-                                onClick={handleDeleteUser}
+                                onClick={() => {
+                                  setUserToDelete(user);
+                                  handleDeleteUser();
+                                }}
                                 disabled={isDeletingUser}
                               >
                                 {isDeletingUser ? "Deleting..." : "Delete"}

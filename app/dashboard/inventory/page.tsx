@@ -448,18 +448,46 @@ export default function InventoryPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Select value={newItem.category} onValueChange={(value) => setNewItem({ ...newItem, category: value })}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(category => (
-                            <SelectItem key={category.id} value={category.name}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex gap-2">
+                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map(category => (
+                              <SelectItem key={category.id} value={category.name}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="icon">
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Add New Category</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="newCategory">Category Name</Label>
+                                <Input
+                                  id="newCategory"
+                                  placeholder="Enter category name"
+                                  value={newCategoryName}
+                                  onChange={(e) => setNewCategoryName(e.target.value)}
+                                />
+                              </div>
+                              <Button onClick={handleAddCategory} disabled={isAddingCategory} className="w-full">
+                                {isAddingCategory ? "Adding..." : "Add Category"}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </div>
                     <Button onClick={handleAddItem} disabled={isAddingItem} className="w-full">
                       {isAddingItem ? "Adding..." : "Add Item"}
