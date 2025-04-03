@@ -1,119 +1,78 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { LowStockSettings } from "./low-stock-settings"
+import { Loader2 } from "lucide-react"
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
+import { cn } from "@/lib/utils"
 
 interface Item {
   id: string
   name: string
+  description: string
   quantity: number
   category: string
 }
 
-interface UserSettings {
-  low_stock_threshold: number
+interface CategoryData {
+  name: string
+  value: number
 }
 
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C43']
+
 export default function ReportsPage() {
-  const router = useRouter()
-  const { toast } = useToast()
   const [items, setItems] = useState<Item[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
-    checkAuth()
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push('/login')
+      }
+    }
+    checkSession()
+  }, [router])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .order('name')
+
+        if (error) throw error
+        setItems(data || [])
+      } catch (error) {
+        console.error('Error fetching data:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load data')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
   }, [])
 
-  const checkAuth = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-      fetchUserSettings()
-      fetchItems()
-    } catch (error) {
-      console.error('Error checking auth:', error)
-      router.push('/login')
+  // Calculate items per category for the pie chart
+  const categoryData: CategoryData[] = items.reduce((acc: CategoryData[], item) => {
+    const existingCategory = acc.find(cat => cat.name === item.category)
+    if (existingCategory) {
+      existingCategory.value++
+    } else {
+      acc.push({ name: item.category, value: 1 })
     }
-  }
-
-  const fetchUserSettings = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // If no settings exist, create default settings
-          const { data: newSettings, error: createError } = await supabase
-            .from('user_settings')
-            .insert([{ user_id: user.id, low_stock_threshold: 10 }])
-            .select()
-            .single()
-
-          if (createError) throw createError
-          setUserSettings(newSettings)
-        } else {
-          throw error
-        }
-      } else {
-        setUserSettings(data)
-      }
-    } catch (error) {
-      console.error('Error fetching user settings:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load user settings",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const fetchItems = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .order('name')
-
-      if (error) throw error
-      setItems(data || [])
-    } catch (error) {
-      console.error('Error fetching items:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load items')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSettingsChange = async () => {
-    await fetchUserSettings()
-    await fetchItems()
-  }
-
-  const lowStockItems = items.filter(item => {
-    const threshold = userSettings?.low_stock_threshold || 10
-    return item.quantity <= threshold
-  })
+    return acc
+  }, [])
 
   if (isLoading) {
     return (
@@ -125,103 +84,122 @@ export default function ReportsPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-destructive/15 text-destructive p-4 rounded-md">
-          {error}
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-red-500">Error</h2>
+          <p className="text-sm text-muted-foreground">{error}</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4 p-3 md:space-y-6 md:p-6">
-      <div className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Reports & Analytics</h2>
-          <p className="text-sm text-muted-foreground">
-            View inventory reports and analytics
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Total Items</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{items.length}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Low Stock Items</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{lowStockItems.length}</div>
-              {userSettings && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Threshold: {userSettings.low_stock_threshold}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Categories</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {new Set(items.map(item => item.category)).size}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Low Stock Settings</CardTitle>
+            <CardTitle>Total Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <LowStockSettings onSettingsChange={handleSettingsChange} />
+            <div className="text-2xl font-bold">{items.length}</div>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader>
-            <CardTitle>Low Stock Items</CardTitle>
+            <CardTitle>Total Categories</CardTitle>
           </CardHeader>
           <CardContent>
-            {lowStockItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No items are low in stock</p>
-            ) : (
-              <div className="space-y-4">
-                {lowStockItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-destructive" />
-                      <div>
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Current stock: {item.quantity} (Threshold: {userSettings?.low_stock_threshold || 10})
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/dashboard/inventory/${item.id}`)}
-                    >
-                      View Details
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="text-2xl font-bold">{categoryData.length}</div>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Items by Category</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  outerRadius={150}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Items</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-[800px]">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="[&_tr]:border-b">
+                  <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                    <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Description</th>
+                    <th className="h-12 px-4 text-center align-middle font-medium">Category</th>
+                    <th className="h-12 px-4 text-center align-middle font-medium">Quantity</th>
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
+                  {items.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                        No items found
+                      </td>
+                    </tr>
+                  ) : (
+                    items.map(item => (
+                      <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                        <td className="p-4 align-middle">
+                          <div className="font-medium">{item.name}</div>
+                        </td>
+                        <td className="p-4 align-middle">
+                          <div className="text-muted-foreground">{item.description}</div>
+                        </td>
+                        <td className="p-4 align-middle text-center">
+                          <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                            {item.category}
+                          </div>
+                        </td>
+                        <td className="p-4 align-middle text-center">
+                          <div className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            item.quantity === 0 ? "bg-red-100 text-red-700" :
+                            item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
+                            "bg-green-100 text-green-700"
+                          )}>
+                            {item.quantity}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 } 

@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { Plus } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 interface User {
   id: string
@@ -35,6 +34,8 @@ export default function UsersPage() {
     role: "viewer"
   })
   const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
 
   useEffect(() => {
     fetchUsers()
@@ -165,6 +166,44 @@ export default function UsersPage() {
         description: "Failed to update user role",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return
+
+    try {
+      setIsDeletingUser(true)
+
+      // First, delete the user from auth.users
+      const { error: authError } = await supabase.auth.admin.deleteUser(userToDelete.id)
+      if (authError) throw authError
+
+      // Then, delete the user from the users table
+      const { error: dbError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userToDelete.id)
+
+      if (dbError) throw dbError
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      })
+
+      // Refresh users list
+      fetchUsers()
+      setUserToDelete(null)
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete user",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingUser(false)
     }
   }
 
@@ -299,19 +338,57 @@ export default function UsersPage() {
                         Joined {new Date(user.created_at).toLocaleDateString()}
                       </div>
                     </div>
-                    <Select
-                      value={user.role}
-                      onValueChange={(value) => handleRoleChange(user.id, value)}
-                    >
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="editor">Editor</SelectItem>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-4">
+                      <Select
+                        value={user.role}
+                        onValueChange={(value) => handleRoleChange(user.id, value)}
+                      >
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="editor">Editor</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isAdmin && (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => setUserToDelete(user)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Delete User</DialogTitle>
+                              <DialogDescription>
+                                Are you sure you want to delete {user.email}? This action cannot be undone.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <Button
+                                variant="outline"
+                                onClick={() => setUserToDelete(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                onClick={handleDeleteUser}
+                                disabled={isDeletingUser}
+                              >
+                                {isDeletingUser ? "Deleting..." : "Delete"}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
