@@ -24,10 +24,6 @@ export default function ReportsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
   const fetchData = async () => {
     try {
       setIsLoading(true)
@@ -60,6 +56,10 @@ export default function ReportsPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const getLowStockItems = () => {
     if (!settings) return []
@@ -143,7 +143,7 @@ export default function ReportsPage() {
             <CardTitle>Low Stock Settings</CardTitle>
           </CardHeader>
           <CardContent>
-            <LowStockSettings />
+            <LowStockSettings onSettingsChange={fetchData} />
           </CardContent>
         </Card>
 

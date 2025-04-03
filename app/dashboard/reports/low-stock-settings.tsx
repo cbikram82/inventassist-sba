@@ -7,7 +7,11 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
-export function LowStockSettings() {
+interface LowStockSettingsProps {
+  onSettingsChange?: () => void
+}
+
+export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
   const { toast } = useToast()
   const [threshold, setThreshold] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
@@ -83,6 +87,9 @@ export function LowStockSettings() {
         title: "Success",
         description: "Settings saved successfully",
       })
+
+      // Call the callback to refresh data
+      onSettingsChange?.()
     } catch (error) {
       console.error('Error saving settings:', error)
       toast({
