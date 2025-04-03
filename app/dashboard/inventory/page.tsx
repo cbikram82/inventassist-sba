@@ -167,6 +167,23 @@ export default function InventoryPage() {
     }
   }
 
+  const handleDownloadTemplate = () => {
+    const headers = ['Name', 'Description', 'Quantity', 'Category']
+    const template = [
+      headers.join(','),
+      'Example Item,This is a sample item description,10,Electronics',
+      'Another Item,Another sample description,5,Office Supplies'
+    ].join('\n')
+
+    const blob = new Blob([template], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'inventory-template.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -182,37 +199,107 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-4 p-3 md:space-y-6 md:p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 md:gap-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Inventory</h2>
-          <p className="text-sm md:text-base text-muted-foreground">
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Inventory</h2>
+          <p className="text-sm text-muted-foreground">
             Manage your inventory items
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild className="bg-primary hover:bg-primary/90">
-            <Link href="/dashboard/inventory/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Item
-            </Link>
-          </Button>
-          <Button variant="outline" onClick={handleExportCSV}>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Item
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Item</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input id="name" placeholder="Enter item name" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Input id="description" placeholder="Enter item description" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input id="quantity" type="number" placeholder="Enter quantity" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <div className="flex gap-2">
+                    <Input id="category" placeholder="Enter category" />
+                    <Button variant="outline" onClick={handleAddCategory}>Add</Button>
+                  </div>
+                  <ScrollArea className="h-[100px] mt-2">
+                    <div className="space-y-1">
+                      {categories.map((category) => (
+                        <div key={category} className="flex items-center justify-between p-2 border rounded text-sm">
+                          <span>{category}</span>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            <span className="sr-only">Select category</span>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+                <Button className="w-full">Add Item</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
             <FileDown className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
-          <Button variant="outline" asChild>
-            <label className="cursor-pointer">
-              <FileUp className="mr-2 h-4 w-4" />
-              Import CSV
-              <input
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={handleImportCSV}
-              />
-            </label>
-          </Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto">
+                <FileUp className="mr-2 h-4 w-4" />
+                Import CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Import Items</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>CSV Template</Label>
+                  <Button variant="outline" onClick={handleDownloadTemplate} className="w-full">
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Download Template
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label>Upload CSV</Label>
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleImportCSV}
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Required columns:</p>
+                  <ul className="list-disc list-inside mt-1">
+                    <li>Name</li>
+                    <li>Description</li>
+                    <li>Quantity</li>
+                    <li>Category</li>
+                  </ul>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -222,7 +309,7 @@ export default function InventoryPage() {
         </Alert>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -232,62 +319,33 @@ export default function InventoryPage() {
             className="pl-8"
           />
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline">Manage Categories</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Manage Categories</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="New category"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                />
-                <Button onClick={handleAddCategory}>Add</Button>
-              </div>
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-2">
-                  {categories.map((category) => (
-                    <div key={category} className="flex items-center justify-between p-2 border rounded">
-                      <span>{category}</span>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
       <div className="rounded-md border bg-card">
         <ScrollArea className="h-[calc(100vh-16rem)]">
-          <div className="min-w-[800px]">
+          <div className="min-w-[600px] md:min-w-[800px]">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[180px] sm:w-[200px] font-semibold">Name</TableHead>
-                  <TableHead className="w-[200px] sm:w-[300px] font-semibold">Description</TableHead>
-                  <TableHead className="w-[80px] sm:w-[100px] font-semibold text-center">Qty</TableHead>
-                  <TableHead className="w-[120px] sm:w-[150px] font-semibold">Category</TableHead>
-                  <TableHead className="w-[80px] sm:w-[100px] font-semibold text-right">Actions</TableHead>
+                  <TableHead className="w-[140px] sm:w-[180px] md:w-[200px] font-semibold">Name</TableHead>
+                  <TableHead className="w-[160px] sm:w-[200px] md:w-[300px] font-semibold">Description</TableHead>
+                  <TableHead className="w-[60px] sm:w-[80px] md:w-[100px] font-semibold text-center">Qty</TableHead>
+                  <TableHead className="w-[100px] sm:w-[120px] md:w-[150px] font-semibold">Category</TableHead>
+                  <TableHead className="w-[60px] sm:w-[80px] md:w-[100px] font-semibold text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredItems.map((item) => (
                   <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium truncate max-w-[180px] sm:max-w-[200px]">
+                    <TableCell className="font-medium truncate max-w-[140px] sm:max-w-[180px] md:max-w-[200px]">
                       {item.name}
                     </TableCell>
-                    <TableCell className="truncate max-w-[200px] sm:max-w-[300px]">
+                    <TableCell className="truncate max-w-[160px] sm:max-w-[200px] md:max-w-[300px]">
                       {item.description}
                     </TableCell>
                     <TableCell className="text-center">
                       <span className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
+                        "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium",
                         item.quantity === 0 ? "bg-red-100 text-red-700" :
                         item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
                         "bg-green-100 text-green-700"
@@ -295,7 +353,7 @@ export default function InventoryPage() {
                         {item.quantity}
                       </span>
                     </TableCell>
-                    <TableCell className="truncate max-w-[120px] sm:max-w-[150px]">
+                    <TableCell className="truncate max-w-[100px] sm:max-w-[120px] md:max-w-[150px]">
                       {item.category}
                     </TableCell>
                     <TableCell className="text-right">
