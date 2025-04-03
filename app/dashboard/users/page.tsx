@@ -175,17 +175,24 @@ export default function UsersPage() {
     try {
       setIsDeletingUser(true)
 
-      // First, delete the user from auth.users
-      const { error: authError } = await supabase.auth.admin.deleteUser(userToDelete.id)
-      if (authError) throw authError
-
-      // Then, delete the user from the users table
+      // First, delete the user from the users table
       const { error: dbError } = await supabase
         .from('users')
         .delete()
         .eq('id', userToDelete.id)
 
       if (dbError) throw dbError
+
+      // Then, delete the user from auth.users using the service role
+      const { error: authError } = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: userToDelete.id }),
+      }).then(res => res.json())
+
+      if (authError) throw authError
 
       toast({
         title: "Success",
@@ -331,7 +338,7 @@ export default function UsersPage() {
                 <p className="text-sm text-muted-foreground">No users found</p>
               ) : (
                 filteredUsers.map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div key={user.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-muted/50 rounded-lg gap-4">
                     <div>
                       <div className="font-medium">{user.email}</div>
                       <div className="text-sm text-muted-foreground">
