@@ -48,19 +48,24 @@ export default function DashboardLayout({
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
+    let mounted = true
+
     const checkSession = async () => {
       try {
-        const hasValidSession = await checkValidSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
         
-        if (!hasValidSession) {
-          router.push('/login')
+        if (error) {
+          console.error('Session error:', error)
+          if (mounted) {
+            router.push('/login')
+          }
           return
         }
 
-        // Get user role
-        const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
-          router.push('/login')
+          if (mounted) {
+            router.push('/login')
+          }
           return
         }
 
@@ -81,13 +86,16 @@ export default function DashboardLayout({
           .eq('id', session.user.id)
           .single()
 
-        setUserRole(userData?.role || '')
-        setIsAdmin(userData?.role === 'admin')
+        if (mounted) {
+          setUserRole(userData?.role || '')
+          setIsAdmin(userData?.role === 'admin')
+          setIsLoading(false)
+        }
       } catch (error) {
         console.error('Session check error:', error)
-        router.push('/login')
-      } finally {
-        setIsLoading(false)
+        if (mounted) {
+          router.push('/login')
+        }
       }
     }
 
@@ -99,7 +107,9 @@ export default function DashboardLayout({
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
-        router.push('/login')
+        if (mounted) {
+          router.push('/login')
+        }
       } else if (event === 'TOKEN_REFRESHED') {
         // Session was refreshed successfully
         console.log('Session refreshed successfully')
@@ -107,6 +117,7 @@ export default function DashboardLayout({
     })
 
     return () => {
+      mounted = false
       clearInterval(refreshInterval)
       subscription.unsubscribe()
     }

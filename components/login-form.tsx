@@ -88,8 +88,18 @@ export function LoginForm({ initialError }: LoginFormProps) {
             // Don't throw the error as this is not critical
           }
         }
-        router.push("/dashboard")
-        router.refresh()
+
+        // Wait for a short moment to ensure the session is properly set
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Verify the session is still valid before redirecting
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          router.push("/dashboard")
+          router.refresh()
+        } else {
+          setError("Failed to establish session. Please try again.")
+        }
       }
     } catch (error) {
       console.error('Sign in error:', error)
