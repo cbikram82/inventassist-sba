@@ -113,7 +113,7 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesRole = !selectedRole || user.role === selectedRole
+    const matchesRole = !selectedRole || selectedRole === "all" || user.role === selectedRole
     return matchesSearch && matchesRole
   })
 
@@ -162,7 +162,7 @@ export default function UsersPage() {
               <SelectValue placeholder="Filter by role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Roles</SelectItem>
+              <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="user">User</SelectItem>
             </SelectContent>
