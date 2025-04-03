@@ -420,6 +420,9 @@ export default function DashboardPage() {
                 <Button variant="outline" className="w-full" onClick={() => router.push('/dashboard/inventory')}>
                   View Inventory
                 </Button>
+                <Button variant="outline" className="w-full" onClick={() => router.push('/dashboard/users')}>
+                  Manage Users
+                </Button>
               </div>
             </CardContent>
           </Card>

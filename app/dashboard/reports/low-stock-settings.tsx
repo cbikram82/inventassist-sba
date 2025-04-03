@@ -15,59 +15,67 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
   const { toast } = useToast()
   const [threshold, setThreshold] = useState<number>(10)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchSettings()
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUserId(user?.id || null)
+    }
+    fetchUser()
   }, [])
 
-  const fetchSettings = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+  useEffect(() => {
+    const fetchSettings = async () => {
+      if (!userId) return
+      setIsLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('user_settings')
+          .select('low_stock_threshold')
+          .eq('user_id', userId)
+          .single()
 
-      const { data, error } = await supabase
-        .from('user_settings')
-        .select('low_stock_threshold')
-        .eq('user_id', user.id)
-        .single()
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // If no settings exist, create default settings
-          const { data: newSettings, error: createError } = await supabase
-            .from('user_settings')
-            .insert([{ user_id: user.id, low_stock_threshold: 10 }])
-            .select()
-            .single()
-
-          if (createError) throw createError
-          setThreshold(newSettings.low_stock_threshold)
-        } else {
-          throw error
+        if (error) throw error
+        if (data?.low_stock_threshold) {
+          setThreshold(data.low_stock_threshold)
         }
-      } else {
-        setThreshold(data.low_stock_threshold)
+      } catch (error) {
+        console.error('Error fetching settings:', error)
+      } finally {
+        setIsLoading(false)
       }
-    } catch (error) {
-      console.error('Error fetching settings:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load settings",
-        variant: "destructive",
-      })
     }
-  }
+
+    fetchSettings()
+  }, [userId])
 
   const handleSave = async () => {
-    try {
-      setIsLoading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+    if (!threshold || threshold < 0) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid threshold value",
+        variant: "destructive",
+      })
+      return
+    }
 
+    if (!userId) {
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsSaving(true)
       const { error } = await supabase
         .from('user_settings')
         .upsert({
-          user_id: user.id,
+          user_id: userId,
           low_stock_threshold: threshold
         })
 
@@ -78,16 +86,19 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
         description: "Low stock threshold updated successfully",
       })
 
-      onSettingsChange()
+      // Call the callback to refresh data
+      if (onSettingsChange) {
+        onSettingsChange()
+      }
     } catch (error) {
-      console.error('Error saving settings:', error)
+      console.error('Error saving threshold:', error)
       toast({
         title: "Error",
-        description: "Failed to save settings",
+        description: "Failed to save threshold",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
@@ -104,8 +115,8 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
           placeholder="Enter threshold"
         />
       </div>
-      <Button onClick={handleSave} disabled={isLoading}>
-        {isLoading ? "Saving..." : "Save Changes"}
+      <Button onClick={handleSave} disabled={isSaving}>
+        {isSaving ? "Saving..." : "Save Changes"}
       </Button>
     </div>
   )
