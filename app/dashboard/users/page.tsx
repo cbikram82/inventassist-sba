@@ -137,6 +137,9 @@ export default function UsersPage() {
         role: "viewer"
       })
 
+      // Wait for 2 seconds to ensure database changes are processed
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
       // Update local state and refresh users list
       try {
         await fetchUsers()
