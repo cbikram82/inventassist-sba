@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertTriangle } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { LowStockSettings } from "./low-stock-settings"
 
 interface Item {
   id: string
   name: string
-  description: string
   quantity: number
   category: string
 }
@@ -19,78 +21,98 @@ interface UserSettings {
 }
 
 export default function ReportsPage() {
+  const router = useRouter()
+  const { toast } = useToast()
   const [items, setItems] = useState<Item[]>([])
-  const [settings, setSettings] = useState<UserSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
 
-  const fetchData = async () => {
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  const checkAuth = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+      fetchUserSettings()
+      fetchItems()
+    } catch (error) {
+      console.error('Error checking auth:', error)
+      router.push('/login')
+    }
+  }
+
+  const fetchUserSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // If no settings exist, create default settings
+          const { data: newSettings, error: createError } = await supabase
+            .from('user_settings')
+            .insert([{ user_id: user.id, low_stock_threshold: 10 }])
+            .select()
+            .single()
+
+          if (createError) throw createError
+          setUserSettings(newSettings)
+        } else {
+          throw error
+        }
+      } else {
+        setUserSettings(data)
+      }
+    } catch (error) {
+      console.error('Error fetching user settings:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load user settings",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const fetchItems = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // Fetch user settings
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user found')
-
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('user_settings')
-        .select('low_stock_threshold')
-        .eq('user_id', user.id)
-        .single()
-
-      if (settingsError) {
-        // If no settings exist, create default settings
-        const { data: newSettings, error: insertError } = await supabase
-          .from('user_settings')
-          .insert([{
-            user_id: user.id,
-            low_stock_threshold: 10
-          }])
-          .select()
-          .single()
-
-        if (insertError) throw insertError
-        setSettings(newSettings)
-      } else {
-        setSettings(settingsData)
-      }
-
-      // Fetch items
-      const { data: itemsData, error: itemsError } = await supabase
+      const { data, error } = await supabase
         .from('items')
         .select('*')
+        .order('name')
 
-      if (itemsError) throw itemsError
-      setItems(itemsData || [])
+      if (error) throw error
+      setItems(data || [])
     } catch (error) {
-      console.error('Error fetching data:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load data')
+      console.error('Error fetching items:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load items')
     } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const getLowStockItems = () => {
-    if (!settings) return []
-    return items.filter(item => item.quantity <= settings.low_stock_threshold)
+  const handleSettingsChange = async () => {
+    await fetchUserSettings()
+    await fetchItems()
   }
 
-  const getCategoryStats = () => {
-    const stats = items.reduce((acc, item) => {
-      acc[item.category] = (acc[item.category] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-
-    return Object.entries(stats).map(([category, count]) => ({
-      category,
-      count
-    }))
-  }
+  const lowStockItems = items.filter(item => 
+    item.quantity <= (userSettings?.low_stock_threshold || 10)
+  )
 
   if (isLoading) {
     return (
@@ -110,16 +132,13 @@ export default function ReportsPage() {
     )
   }
 
-  const lowStockItems = getLowStockItems()
-  const categoryStats = getCategoryStats()
-
   return (
     <div className="space-y-4 p-3 md:space-y-6 md:p-6">
       <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-xl md:text-3xl font-bold tracking-tight">Reports & Analytics</h2>
           <p className="text-sm text-muted-foreground">
-            View inventory statistics and reports
+            View inventory reports and analytics
           </p>
         </div>
 
@@ -138,12 +157,7 @@ export default function ReportsPage() {
               <CardTitle>Low Stock Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{lowStockItems.length}</div>
-              {settings && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Threshold: {settings.low_stock_threshold}
-                </p>
-              )}
+              <div className="text-2xl font-bold text-destructive">{lowStockItems.length}</div>
             </CardContent>
           </Card>
 
@@ -152,7 +166,9 @@ export default function ReportsPage() {
               <CardTitle>Categories</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{categoryStats.length}</div>
+              <div className="text-2xl font-bold">
+                {new Set(items.map(item => item.category)).size}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -162,50 +178,43 @@ export default function ReportsPage() {
             <CardTitle>Low Stock Settings</CardTitle>
           </CardHeader>
           <CardContent>
-            <LowStockSettings onSettingsChange={fetchData} />
+            <LowStockSettings onSettingsChange={handleSettingsChange} />
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Low Stock Items</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {lowStockItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No low stock items</p>
-                ) : (
-                  lowStockItems.map(item => (
-                    <div key={item.id} className="flex justify-between items-center p-2 bg-muted/50 rounded">
+        <Card>
+          <CardHeader>
+            <CardTitle>Low Stock Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lowStockItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No items are low in stock</p>
+            ) : (
+              <div className="space-y-4">
+                {lowStockItems.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-destructive" />
                       <div>
                         <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-muted-foreground">{item.category}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Current stock: {item.quantity}
+                        </div>
                       </div>
-                      <div className="text-sm font-medium">{item.quantity}</div>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Category Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {categoryStats.map(stat => (
-                  <div key={stat.category} className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                    <div className="font-medium">{stat.category}</div>
-                    <div className="text-sm text-muted-foreground">{stat.count} items</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/inventory/${item.id}`)}
+                    >
+                      View Details
+                    </Button>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
