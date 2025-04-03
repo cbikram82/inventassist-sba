@@ -174,22 +174,12 @@ export default function UsersPage() {
 
       if (error) throw error
 
-      // If we have a session, ensure the current user's data is up to date
+      // Set users data directly without trying to handle current user separately
+      setUsers(data || [])
+      
+      // Update current user ID if we have a session
       if (session?.user) {
-        const currentUser = data?.find(user => user.id === session.user.id)
-        if (currentUser) {
-          setUsers(data || [])
-        } else {
-          // If current user not found in the list, add them
-          setUsers([{
-            id: session.user.id,
-            email: session.user.email || '',
-            role: 'viewer',
-            created_at: new Date().toISOString()
-          }, ...(data || [])])
-        }
-      } else {
-        setUsers(data || [])
+        setCurrentUserId(session.user.id)
       }
     } catch (error) {
       console.error('Error fetching users:', error)
