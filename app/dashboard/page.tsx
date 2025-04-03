@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [userRole, setUserRole] = useState<string>("")
   const [newItem, setNewItem] = useState({
     name: "",
     description: "",
@@ -71,6 +72,7 @@ export default function DashboardPage() {
         .eq('id', user.id)
         .single()
       setIsAdmin(userData?.role === 'admin')
+      setUserRole(userData?.role || '')
     }
   }
 
@@ -382,101 +384,105 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add New Item
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Add New Item</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Name</Label>
-                        <Input 
-                          id="name" 
-                          placeholder="Enter item name"
-                          value={newItem.name}
-                          onChange={handleNameChange}
-                          className={cn(
-                            nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
+                {(isAdmin || userRole === 'editor') && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button className="w-full">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add New Item
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Add New Item</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="name">Name</Label>
+                          <Input 
+                            id="name" 
+                            placeholder="Enter item name"
+                            value={newItem.name}
+                            onChange={handleNameChange}
+                            className={cn(
+                              nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
+                            )}
+                          />
+                          {nameExists && (
+                            <p className="text-sm text-yellow-600">
+                              An item with this name already exists. Please choose a different name.
+                            </p>
                           )}
-                        />
-                        {nameExists && (
-                          <p className="text-sm text-yellow-600">
-                            An item with this name already exists. Please choose a different name.
-                          </p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="description">Description</Label>
-                        <Input 
-                          id="description" 
-                          placeholder="Enter item description"
-                          value={newItem.description}
-                          onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="quantity">Quantity</Label>
-                        <Input 
-                          id="quantity" 
-                          type="number" 
-                          placeholder="Enter quantity"
-                          value={newItem.quantity}
-                          onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
-                        <div className="flex gap-2">
-                          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category.id} value={category.name}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="icon">
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Add New Category</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="newCategory">Category Name</Label>
-                                  <Input
-                                    id="newCategory"
-                                    placeholder="Enter category name"
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                  />
-                                </div>
-                                <Button onClick={handleAddCategory} className="w-full">
-                                  Add Category
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
                         </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Input 
+                            id="description" 
+                            placeholder="Enter item description"
+                            value={newItem.description}
+                            onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="quantity">Quantity</Label>
+                          <Input 
+                            id="quantity" 
+                            type="number" 
+                            placeholder="Enter quantity"
+                            value={newItem.quantity}
+                            onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="category">Category</Label>
+                          <div className="flex gap-2">
+                            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map((category) => (
+                                  <SelectItem key={category.id} value={category.name}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {isAdmin && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="icon">
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Add New Category</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor="newCategory">Category Name</Label>
+                                      <Input
+                                        id="newCategory"
+                                        placeholder="Enter category name"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                      />
+                                    </div>
+                                    <Button onClick={handleAddCategory} className="w-full">
+                                      Add Category
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                          </div>
+                        </div>
+                        <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
                       </div>
-                      <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                )}
 
                 <Button variant="outline" className="w-full" onClick={() => router.push('/dashboard/inventory')}>
                   View Inventory

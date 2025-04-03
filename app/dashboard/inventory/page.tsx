@@ -507,36 +507,66 @@ export default function InventoryPage() {
             <CardTitle>Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {filteredItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No items found</p>
-              ) : (
-                filteredItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div>
-                      <div className="font-medium">{item.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {item.description} • Category: {item.category}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-medium">{item.quantity}</div>
-                        <div className="text-sm text-muted-foreground">in stock</div>
-                      </div>
-                      {(userRole === 'admin' || userRole === 'editor') && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDelete(item.id)}
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+            <div className="rounded-md border">
+              <div className="relative w-full overflow-auto">
+                <table className="w-full caption-bottom text-sm">
+                  <thead className="[&_tr]:border-b">
+                    <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
+                      <th className="h-12 px-4 text-left align-middle font-medium">Description</th>
+                      <th className="h-12 px-4 text-center align-middle font-medium">Category</th>
+                      <th className="h-12 px-4 text-center align-middle font-medium">Quantity</th>
+                      <th className="h-12 px-4 text-right align-middle font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="[&_tr:last-child]:border-0">
+                    {filteredItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                          No items found
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredItems.map(item => (
+                        <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                          <td className="p-4 align-middle">
+                            <div className="font-medium">{item.name}</div>
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="text-muted-foreground">{item.description}</div>
+                          </td>
+                          <td className="p-4 align-middle text-center">
+                            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                              {item.category}
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle text-center">
+                            <div className={cn(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                              item.quantity === 0 ? "bg-red-100 text-red-700" :
+                              item.quantity <= 10 ? "bg-yellow-100 text-yellow-700" :
+                              "bg-green-100 text-green-700"
+                            )}>
+                              {item.quantity}
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle text-right">
+                            {(userRole === 'admin' || userRole === 'editor') && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(item.id)}
+                              >
+                                Delete
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </CardContent>
         </Card>
