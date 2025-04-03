@@ -20,6 +20,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/components/ui/use-toast"
 
 interface Item {
   id: string
@@ -32,12 +34,20 @@ interface Item {
 
 export default function InventoryPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [items, setItems] = useState<Item[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [newCategory, setNewCategory] = useState("")
   const [categories, setCategories] = useState<string[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [newItem, setNewItem] = useState({
+    name: "",
+    description: "",
+    quantity: "",
+    category: ""
+  })
 
   useEffect(() => {
     checkAuth()
@@ -104,14 +114,96 @@ export default function InventoryPage() {
     }
   }
 
+  const handleAddItem = async () => {
+    try {
+      if (!newItem.name.trim()) {
+        toast({
+          title: "Error",
+          description: "Item name is required",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!selectedCategory) {
+        toast({
+          title: "Error",
+          description: "Please select a category",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const { error } = await supabase
+        .from('items')
+        .insert([{
+          name: newItem.name,
+          description: newItem.description,
+          quantity: parseInt(newItem.quantity) || 0,
+          category: selectedCategory
+        }])
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Item added successfully",
+      })
+
+      // Reset form
+      setNewItem({
+        name: "",
+        description: "",
+        quantity: "",
+        category: ""
+      })
+      setSelectedCategory("")
+      
+      // Refresh items
+      fetchItems()
+    } catch (error) {
+      console.error('Error adding item:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add item",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleAddCategory = async () => {
-    if (!newCategory.trim()) return
+    if (!newCategory.trim()) {
+      toast({
+        title: "Error",
+        description: "Category name is required",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
+      if (categories.includes(newCategory)) {
+        toast({
+          title: "Error",
+          description: "Category already exists",
+          variant: "destructive",
+        })
+        return
+      }
+
       setCategories([...categories, newCategory])
       setNewCategory("")
+      toast({
+        title: "Success",
+        description: "Category added successfully",
+      })
     } catch (error) {
       console.error('Error adding category:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add category",
+        variant: "destructive",
+      })
     }
   }
 
@@ -222,37 +314,56 @@ export default function InventoryPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
-                  <Input id="name" placeholder="Enter item name" />
+                  <Input 
+                    id="name" 
+                    placeholder="Enter item name"
+                    value={newItem.name}
+                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
-                  <Input id="description" placeholder="Enter item description" />
+                  <Input 
+                    id="description" 
+                    placeholder="Enter item description"
+                    value={newItem.description}
+                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="quantity">Quantity</Label>
-                  <Input id="quantity" type="number" placeholder="Enter quantity" />
+                  <Input 
+                    id="quantity" 
+                    type="number" 
+                    placeholder="Enter quantity"
+                    value={newItem.quantity}
+                    onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
-                  <div className="flex gap-2">
-                    <Input id="category" placeholder="Enter category" />
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-2 mt-2">
+                    <Input 
+                      placeholder="New category"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                    />
                     <Button variant="outline" onClick={handleAddCategory}>Add</Button>
                   </div>
-                  <ScrollArea className="h-[100px] mt-2">
-                    <div className="space-y-1">
-                      {categories.map((category) => (
-                        <div key={category} className="flex items-center justify-between p-2 border rounded text-sm">
-                          <span>{category}</span>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            <span className="sr-only">Select category</span>
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
                 </div>
-                <Button className="w-full">Add Item</Button>
+                <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -323,24 +434,32 @@ export default function InventoryPage() {
 
       <div className="rounded-md border bg-card">
         <ScrollArea className="h-[calc(100vh-16rem)]">
-          <div className="min-w-[600px] md:min-w-[800px]">
+          <div className="w-full">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[140px] sm:w-[180px] md:w-[200px] font-semibold">Name</TableHead>
-                  <TableHead className="w-[160px] sm:w-[200px] md:w-[300px] font-semibold">Description</TableHead>
-                  <TableHead className="w-[60px] sm:w-[80px] md:w-[100px] font-semibold text-center">Qty</TableHead>
-                  <TableHead className="w-[100px] sm:w-[120px] md:w-[150px] font-semibold">Category</TableHead>
-                  <TableHead className="w-[60px] sm:w-[80px] md:w-[100px] font-semibold text-right">Actions</TableHead>
+                  <TableHead className="font-semibold">Name</TableHead>
+                  <TableHead className="hidden sm:table-cell font-semibold">Description</TableHead>
+                  <TableHead className="font-semibold text-center">Qty</TableHead>
+                  <TableHead className="hidden sm:table-cell font-semibold">Category</TableHead>
+                  <TableHead className="font-semibold text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredItems.map((item) => (
                   <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium truncate max-w-[140px] sm:max-w-[180px] md:max-w-[200px]">
-                      {item.name}
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col">
+                        <span>{item.name}</span>
+                        <span className="sm:hidden text-sm text-muted-foreground">
+                          {item.description}
+                        </span>
+                        <span className="sm:hidden text-sm text-muted-foreground">
+                          {item.category}
+                        </span>
+                      </div>
                     </TableCell>
-                    <TableCell className="truncate max-w-[160px] sm:max-w-[200px] md:max-w-[300px]">
+                    <TableCell className="hidden sm:table-cell">
                       {item.description}
                     </TableCell>
                     <TableCell className="text-center">
@@ -353,7 +472,7 @@ export default function InventoryPage() {
                         {item.quantity}
                       </span>
                     </TableCell>
-                    <TableCell className="truncate max-w-[100px] sm:max-w-[120px] md:max-w-[150px]">
+                    <TableCell className="hidden sm:table-cell">
                       {item.category}
                     </TableCell>
                     <TableCell className="text-right">
