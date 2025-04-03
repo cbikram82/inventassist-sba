@@ -105,19 +105,14 @@ export default function DashboardPage() {
 
       if (usersDataError) throw usersDataError
 
-      // Get auth data for all users
-      const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
+      // Get current user's session
+      const { data: { session } } = await supabase.auth.getSession()
 
-      if (authError) throw authError
-
-      // Combine user data with auth data
-      const usersWithAuth = users.map(user => {
-        const authUser = authData.users.find(auth => auth.id === user.id)
-        return {
-          ...user,
-          last_sign_in_at: authUser?.last_sign_in_at
-        }
-      })
+      // Get online status based on last activity
+      const usersWithStatus = users.map(user => ({
+        ...user,
+        last_sign_in_at: user.last_activity || null
+      }))
 
       // Fetch next event
       const { data: eventData, error: eventError } = await supabase
@@ -130,7 +125,7 @@ export default function DashboardPage() {
       setStats({
         totalUsers: usersCount || 0,
         totalItems: itemsCount || 0,
-        recentUsers: usersWithAuth || [],
+        recentUsers: usersWithStatus || [],
         nextEvent: eventData?.next_event || 'No upcoming events'
       })
     } catch (error) {
@@ -392,7 +387,7 @@ export default function DashboardPage() {
                         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
                         user.last_sign_in_at ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                       )}>
-                        {user.last_sign_in_at ? "Online" : "Offline"}
+                        {user.last_sign_in_at ? "Active" : "Inactive"}
                       </div>
                       {user.last_sign_in_at && (
                         <div className="text-xs text-muted-foreground mt-1">
