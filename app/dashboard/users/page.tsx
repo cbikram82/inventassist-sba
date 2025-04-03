@@ -129,7 +129,7 @@ export default function UsersPage() {
 
       toast({
         title: "Success",
-        description: "User created successfully. Please check their email to verify their account.",
+        description: "User created successfully. They can now log in with their email and password.",
       })
 
       // Reset form
@@ -155,13 +155,33 @@ export default function UsersPage() {
       setIsLoading(true)
       setError(null)
 
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession()
+
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setUsers(data || [])
+
+      // If we have a session, ensure the current user's data is up to date
+      if (session?.user) {
+        const currentUser = data?.find(user => user.id === session.user.id)
+        if (currentUser) {
+          setUsers(data || [])
+        } else {
+          // If current user not found in the list, add them
+          setUsers([{
+            id: session.user.id,
+            email: session.user.email || '',
+            role: 'viewer',
+            created_at: new Date().toISOString()
+          }, ...(data || [])])
+        }
+      } else {
+        setUsers(data || [])
+      }
     } catch (error) {
       console.error('Error fetching users:', error)
       setError(error instanceof Error ? error.message : 'Failed to load users')
