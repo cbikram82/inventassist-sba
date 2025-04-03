@@ -73,9 +73,6 @@ export default function UsersPage() {
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: newUser.email,
         password: newUser.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
       })
 
       if (signUpError) {
@@ -96,7 +93,7 @@ export default function UsersPage() {
       }
 
       // Create the user profile
-      const { data: profileData, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from('users')
         .insert([{
           id: user.id,
@@ -105,11 +102,9 @@ export default function UsersPage() {
           created_at: new Date().toISOString(),
           last_activity: new Date().toISOString()
         }])
-        .select()
-        .single()
 
       if (profileError) {
-        console.error('Profile creation error:', profileError)
+        console.error('Profile error:', profileError)
         // If profile creation fails, we should clean up the auth user
         await fetch('/api/admin/delete-user', {
           method: 'POST',
@@ -119,10 +114,6 @@ export default function UsersPage() {
           body: JSON.stringify({ userId: user.id }),
         })
         throw profileError
-      }
-
-      if (!profileData) {
-        throw new Error("Failed to create user profile")
       }
 
       // Show success message
