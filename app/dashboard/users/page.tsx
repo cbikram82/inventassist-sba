@@ -28,6 +28,7 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [newUser, setNewUser] = useState({
     email: "",
     password: "",
@@ -45,6 +46,7 @@ export default function UsersPage() {
   const checkAdminStatus = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
+      setCurrentUserId(user.id)
       const { data: userData } = await supabase
         .from('users')
         .select('role')
@@ -78,7 +80,7 @@ export default function UsersPage() {
 
       if (signUpError) throw signUpError
 
-      if (!user) {
+      if (!user || !user.email) {
         throw new Error("Failed to create user")
       }
 
@@ -94,9 +96,24 @@ export default function UsersPage() {
 
       if (profileError) {
         // If profile creation fails, we should clean up the auth user
-        await supabase.auth.admin.deleteUser(user.id)
+        await fetch('/api/admin/delete-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId: user.id }),
+        })
         throw profileError
       }
+
+      // Update local state immediately
+      const newUserData: User = {
+        id: user.id,
+        email: user.email,
+        role: newUser.role,
+        created_at: new Date().toISOString()
+      }
+      setUsers(prevUsers => [newUserData, ...prevUsers])
 
       toast({
         title: "Success",
@@ -109,9 +126,6 @@ export default function UsersPage() {
         password: "",
         role: "viewer"
       })
-      
-      // Refresh users list
-      fetchUsers()
     } catch (error) {
       console.error('Error creating user:', error)
       toast({
@@ -359,7 +373,7 @@ export default function UsersPage() {
                           <SelectItem value="viewer">Viewer</SelectItem>
                         </SelectContent>
                       </Select>
-                      {isAdmin && (
+                      {isAdmin && user.id !== currentUserId && (
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button
