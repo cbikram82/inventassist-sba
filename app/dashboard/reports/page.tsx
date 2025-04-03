@@ -110,9 +110,10 @@ export default function ReportsPage() {
     await fetchItems()
   }
 
-  const lowStockItems = items.filter(item => 
-    item.quantity <= (userSettings?.low_stock_threshold || 10)
-  )
+  const lowStockItems = items.filter(item => {
+    const threshold = userSettings?.low_stock_threshold || 10
+    return item.quantity <= threshold
+  })
 
   if (isLoading) {
     return (
@@ -158,6 +159,11 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{lowStockItems.length}</div>
+              {userSettings && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Threshold: {userSettings.low_stock_threshold}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -198,7 +204,7 @@ export default function ReportsPage() {
                       <div>
                         <div className="font-medium">{item.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          Current stock: {item.quantity}
+                          Current stock: {item.quantity} (Threshold: {userSettings?.low_stock_threshold || 10})
                         </div>
                       </div>
                     </div>

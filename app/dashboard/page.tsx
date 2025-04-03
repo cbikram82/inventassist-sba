@@ -1,189 +1,429 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
+import { Loader2, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { Package, Users, Settings, Plus } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
+
+interface Item {
+  id: string
+  name: string
+  description: string
+  quantity: number
+  category: string
+}
+
+interface Category {
+  id: string
+  name: string
+}
 
 interface DashboardStats {
   totalUsers: number
   totalItems: number
-  recentUsers: any[]
+  recentUsers: Array<{
+    id: string
+    email: string
+    created_at: string
+  }>
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    totalItems: 0,
-    recentUsers: [],
-  })
-  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const { toast } = useToast()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [isCheckingName, setIsCheckingName] = useState(false)
+  const [nameExists, setNameExists] = useState(false)
+  const [newItem, setNewItem] = useState({
+    name: "",
+    description: "",
+    quantity: "",
+    category: ""
+  })
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        // Get total users
-        const { count: userCount } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
+    fetchData()
+    fetchCategories()
+  }, [])
 
-        // Get total items
-        const { count: itemCount } = await supabase
-          .from('items')
-          .select('*', { count: 'exact', head: true })
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
 
-        // Get recent users
-        const { data: recentUsers } = await supabase
-          .from('users')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(5)
+      // Fetch total users
+      const { count: usersCount, error: usersError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
 
-        setStats({
-          totalUsers: userCount || 0,
-          totalItems: itemCount || 0,
-          recentUsers: recentUsers || [],
-        })
-      } catch (error) {
-        console.error('Error fetching stats:', error)
-      } finally {
-        setIsLoading(false)
-      }
+      if (usersError) throw usersError
+
+      // Fetch total items
+      const { count: itemsCount, error: itemsError } = await supabase
+        .from('items')
+        .select('*', { count: 'exact', head: true })
+
+      if (itemsError) throw itemsError
+
+      // Fetch recent users
+      const { data: recentUsers, error: recentError } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (recentError) throw recentError
+
+      setStats({
+        totalUsers: usersCount || 0,
+        totalItems: itemsCount || 0,
+        recentUsers: recentUsers || []
+      })
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load dashboard data')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+
+      if (error) throw error
+      setCategories(data || [])
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+    }
+  }
+
+  const checkDuplicateName = async (name: string) => {
+    if (!name.trim()) {
+      setNameExists(false)
+      return
     }
 
-    fetchStats()
-  }, [])
+    try {
+      setIsCheckingName(true)
+      const { data, error } = await supabase
+        .from('items')
+        .select('id')
+        .ilike('name', name)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        throw error
+      }
+
+      setNameExists(!!data)
+    } catch (error) {
+      console.error('Error checking duplicate name:', error)
+    } finally {
+      setIsCheckingName(false)
+    }
+  }
+
+  const handleNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value
+    setNewItem({ ...newItem, name: newName })
+    await checkDuplicateName(newName)
+  }
+
+  const handleAddItem = async () => {
+    if (nameExists) {
+      toast({
+        title: "Error",
+        description: "An item with this name already exists. Please choose a different name.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      if (!newItem.name.trim()) {
+        toast({
+          title: "Error",
+          description: "Item name is required",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!selectedCategory) {
+        toast({
+          title: "Error",
+          description: "Please select a category",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const { error } = await supabase
+        .from('items')
+        .insert([{
+          name: newItem.name,
+          description: newItem.description,
+          quantity: parseInt(newItem.quantity) || 0,
+          category: selectedCategory
+        }])
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Item added successfully",
+      })
+
+      // Reset form
+      setNewItem({
+        name: "",
+        description: "",
+        quantity: "",
+        category: ""
+      })
+      setSelectedCategory("")
+      setNameExists(false)
+      
+      // Refresh data
+      fetchData()
+    } catch (error) {
+      console.error('Error adding item:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add item",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddCategory = async () => {
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .insert([{ name: newCategoryName }])
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Category added successfully",
+      })
+
+      setNewCategoryName("")
+      fetchCategories()
+    } catch (error) {
+      console.error('Error adding category:', error)
+      toast({
+        title: "Error",
+        description: "Failed to add category",
+        variant: "destructive",
+      })
+    }
+  }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-destructive/15 text-destructive p-4 rounded-md">
+          {error}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 p-3 md:space-y-6 md:p-6">
+      <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">
-            Welcome to your inventory management system
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Dashboard Overview</h2>
+          <p className="text-sm text-muted-foreground">
+            Welcome to your inventory management dashboard
           </p>
         </div>
-        <Button onClick={() => router.push('/dashboard/inventory/new')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Item
-        </Button>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">
-              Registered users in the system
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Total Users</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalItems}</div>
-            <p className="text-xs text-muted-foreground">
-              Items in inventory
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Total Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.totalItems || 0}</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">System Status</CardTitle>
-            <Settings className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">Active</div>
-            <p className="text-xs text-muted-foreground">
-              All systems operational
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>System Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-500">Active</div>
+            </CardContent>
+          </Card>
+        </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Recent Users</CardTitle>
-            <CardDescription>
-              Latest users who joined the system
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {stats.recentUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{user.email}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Joined {new Date(user.created_at).toLocaleDateString()}
-                    </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Users</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {stats?.recentUsers.map(user => (
+                  <div key={user.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="font-medium">{user.email}</div>
+                      <div className="text-sm text-muted-foreground">
+                        Joined {new Date(user.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => router.push(`/dashboard/users/${user.id}`)}>
-                    View
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Common tasks and shortcuts
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => router.push('/dashboard/inventory')}
-              >
-                <Package className="mr-2 h-4 w-4" />
-                Manage Inventory
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => router.push('/dashboard/users')}
-              >
-                <Users className="mr-2 h-4 w-4" />
-                Manage Users
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => router.push('/dashboard/settings')}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                System Settings
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add New Item
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Add New Item</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input 
+                          id="name" 
+                          placeholder="Enter item name"
+                          value={newItem.name}
+                          onChange={handleNameChange}
+                          className={cn(
+                            nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
+                          )}
+                        />
+                        {nameExists && (
+                          <p className="text-sm text-yellow-600">
+                            An item with this name already exists. Please choose a different name.
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="description">Description</Label>
+                        <Input 
+                          id="description" 
+                          placeholder="Enter item description"
+                          value={newItem.description}
+                          onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input 
+                          id="quantity" 
+                          type="number" 
+                          placeholder="Enter quantity"
+                          value={newItem.quantity}
+                          onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="category">Category</Label>
+                        <div className="flex gap-2">
+                          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories.map((category) => (
+                                <SelectItem key={category.id} value={category.name}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Add New Category</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="newCategory">Category Name</Label>
+                                  <Input
+                                    id="newCategory"
+                                    placeholder="Enter category name"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                  />
+                                </div>
+                                <Button onClick={handleAddCategory} className="w-full">
+                                  Add Category
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </div>
+                      <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                <Button variant="outline" className="w-full" onClick={() => router.push('/dashboard/inventory')}>
+                  View Inventory
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
