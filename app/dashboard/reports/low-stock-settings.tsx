@@ -8,14 +8,13 @@ import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 
 interface LowStockSettingsProps {
-  onSettingsChange?: () => void
+  onSettingsChange: () => void
 }
 
 export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
   const { toast } = useToast()
-  const [threshold, setThreshold] = useState<string>("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
+  const [threshold, setThreshold] = useState<number>(10)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     fetchSettings()
@@ -23,7 +22,6 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
 
   const fetchSettings = async () => {
     try {
-      setIsLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -34,20 +32,21 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
         .single()
 
       if (error) {
-        // If no settings exist, create default settings
-        const { data: newSettings, error: insertError } = await supabase
-          .from('user_settings')
-          .insert([{
-            user_id: user.id,
-            low_stock_threshold: 10
-          }])
-          .select()
-          .single()
+        if (error.code === 'PGRST116') {
+          // If no settings exist, create default settings
+          const { data: newSettings, error: createError } = await supabase
+            .from('user_settings')
+            .insert([{ user_id: user.id, low_stock_threshold: 10 }])
+            .select()
+            .single()
 
-        if (insertError) throw insertError
-        setThreshold(newSettings.low_stock_threshold.toString())
+          if (createError) throw createError
+          setThreshold(newSettings.low_stock_threshold)
+        } else {
+          throw error
+        }
       } else {
-        setThreshold(data.low_stock_threshold.toString())
+        setThreshold(data.low_stock_threshold)
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -56,43 +55,30 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
         description: "Failed to load settings",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
   const handleSave = async () => {
     try {
-      setIsSaving(true)
+      setIsLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      const thresholdValue = parseInt(threshold)
-      if (isNaN(thresholdValue) || thresholdValue < 0) {
-        toast({
-          title: "Error",
-          description: "Please enter a valid number",
-          variant: "destructive",
-        })
-        return
-      }
 
       const { error } = await supabase
         .from('user_settings')
         .upsert({
           user_id: user.id,
-          low_stock_threshold: thresholdValue
+          low_stock_threshold: threshold
         })
 
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Settings saved successfully",
+        description: "Low stock threshold updated successfully",
       })
 
-      // Call the callback to refresh data
-      onSettingsChange?.()
+      onSettingsChange()
     } catch (error) {
       console.error('Error saving settings:', error)
       toast({
@@ -101,36 +87,26 @@ export function LowStockSettings({ onSettingsChange }: LowStockSettingsProps) {
         variant: "destructive",
       })
     } finally {
-      setIsSaving(false)
+      setIsLoading(false)
     }
-  }
-
-  if (isLoading) {
-    return <div>Loading settings...</div>
   }
 
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="threshold">Low Stock Threshold</Label>
-        <div className="flex gap-2">
-          <Input
-            id="threshold"
-            type="number"
-            min="0"
-            value={threshold}
-            onChange={(e) => setThreshold(e.target.value)}
-            placeholder="Enter threshold"
-            disabled={isSaving}
-          />
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Items with quantity below this number will be considered low stock
-        </p>
+        <Input
+          id="threshold"
+          type="number"
+          min="0"
+          value={threshold}
+          onChange={(e) => setThreshold(Number(e.target.value))}
+          placeholder="Enter threshold"
+        />
       </div>
+      <Button onClick={handleSave} disabled={isLoading}>
+        {isLoading ? "Saving..." : "Save Changes"}
+      </Button>
     </div>
   )
 } 

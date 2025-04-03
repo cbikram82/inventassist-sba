@@ -32,16 +32,28 @@ interface Item {
   created_at: string
 }
 
+interface Category {
+  id: string
+  name: string
+}
+
+interface User {
+  id: string
+  role: string
+}
+
 export default function InventoryPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [items, setItems] = useState<Item[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [newCategory, setNewCategory] = useState("")
-  const [categories, setCategories] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [isAddingCategory, setIsAddingCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [userRole, setUserRole] = useState<string>("")
   const [newItem, setNewItem] = useState({
     name: "",
     description: "",
@@ -55,25 +67,24 @@ export default function InventoryPage() {
 
   const checkAuth = async () => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
         router.push('/login')
         return
       }
 
-      if (!session) {
-        console.log('No session found, redirecting to login')
-        router.push('/login')
-        return
-      }
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
 
-      // If we have a valid session, fetch the items
+      if (userError) throw userError
+      setUserRole(userData.role)
       fetchItems()
       fetchCategories()
     } catch (error) {
-      console.error('Auth check error:', error)
+      console.error('Error checking auth:', error)
       router.push('/login')
     }
   }
@@ -101,14 +112,12 @@ export default function InventoryPage() {
   const fetchCategories = async () => {
     try {
       const { data, error } = await supabase
-        .from('items')
-        .select('category')
-        .not('category', 'is', null)
+        .from('categories')
+        .select('*')
 
       if (error) throw error
 
-      const uniqueCategories = Array.from(new Set(data.map(item => item.category)))
-      setCategories(uniqueCategories)
+      setCategories(data || [])
     } catch (error) {
       console.error('Error fetching categories:', error)
     }
@@ -171,37 +180,70 @@ export default function InventoryPage() {
     }
   }
 
-  const handleAddCategory = async () => {
-    if (!newCategory.trim()) {
+  const handleDelete = async (id: string) => {
+    if (userRole !== 'admin' && userRole !== 'editor') {
       toast({
-        title: "Error",
-        description: "Category name is required",
+        title: "Access Denied",
+        description: "You don't have permission to delete items",
         variant: "destructive",
       })
       return
     }
 
     try {
-      if (categories.includes(newCategory)) {
-        toast({
-          title: "Error",
-          description: "Category already exists",
-          variant: "destructive",
-        })
-        return
-      }
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .eq('id', id)
 
-      setCategories([...categories, newCategory])
-      setNewCategory("")
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Item deleted successfully",
+      })
+
+      fetchItems()
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete item",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddCategory = async () => {
+    if (userRole !== 'admin' && userRole !== 'editor') {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to add categories",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .insert([{ name: newCategoryName }])
+
+      if (error) throw error
+
       toast({
         title: "Success",
         description: "Category added successfully",
       })
+
+      setNewCategoryName("")
+      setIsAddingCategory(false)
+      fetchCategories()
     } catch (error) {
       console.error('Error adding category:', error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add category",
+        description: "Failed to add category",
         variant: "destructive",
       })
     }
@@ -348,20 +390,12 @@ export default function InventoryPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
+                        <SelectItem key={category.id} value={category.name}>
+                          {category.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="flex gap-2 mt-2">
-                    <Input 
-                      placeholder="New category"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                    />
-                    <Button variant="outline" onClick={handleAddCategory}>Add</Button>
-                  </div>
                 </div>
                 <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
               </div>

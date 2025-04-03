@@ -25,7 +25,7 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedRole, setSelectedRole] = useState<string>("")
+  const [selectedRole, setSelectedRole] = useState<string>("all")
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesRole = !selectedRole || selectedRole === "all" || user.role === selectedRole
+    const matchesRole = selectedRole === "all" || user.role === selectedRole
     return matchesSearch && matchesRole
   })
 
@@ -164,7 +164,8 @@ export default function UsersPage() {
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="user">User</SelectItem>
+              <SelectItem value="editor">Editor</SelectItem>
+              <SelectItem value="viewer">Viewer</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -195,7 +196,8 @@ export default function UsersPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
