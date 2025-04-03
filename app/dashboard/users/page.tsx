@@ -65,36 +65,52 @@ export default function UsersPage() {
 
     try {
       setIsCreatingUser(true)
+      
+      // First, create the auth user
       const { data: { user }, error: signUpError } = await supabase.auth.signUp({
         email: newUser.email,
         password: newUser.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
       })
 
       if (signUpError) throw signUpError
 
-      if (user) {
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([{
-            id: user.id,
-            email: user.email,
-            role: newUser.role
-          }])
-
-        if (profileError) throw profileError
-
-        toast({
-          title: "Success",
-          description: "User created successfully",
-        })
-
-        setNewUser({
-          email: "",
-          password: "",
-          role: "viewer"
-        })
-        fetchUsers()
+      if (!user) {
+        throw new Error("Failed to create user")
       }
+
+      // Then, create the user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert([{
+          id: user.id,
+          email: user.email,
+          role: newUser.role,
+          created_at: new Date().toISOString()
+        }])
+
+      if (profileError) {
+        // If profile creation fails, we should clean up the auth user
+        await supabase.auth.admin.deleteUser(user.id)
+        throw profileError
+      }
+
+      toast({
+        title: "Success",
+        description: "User created successfully. Please check their email to verify their account.",
+      })
+
+      // Reset form
+      setNewUser({
+        email: "",
+        password: "",
+        role: "viewer"
+      })
+      
+      // Refresh users list
+      fetchUsers()
     } catch (error) {
       console.error('Error creating user:', error)
       toast({
