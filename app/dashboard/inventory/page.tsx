@@ -25,9 +25,9 @@ import { useToast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
-// Disable caching for this page
+// Configure page to be dynamic and not cached
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 interface Item {
   id: string
