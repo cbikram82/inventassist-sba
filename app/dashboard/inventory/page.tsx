@@ -67,6 +67,7 @@ export default function InventoryPage() {
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
   const [isDeletingItem, setIsDeletingItem] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   useEffect(() => {
     fetchItems()
@@ -363,6 +364,61 @@ export default function InventoryPage() {
     a.download = 'inventory-template.csv'
     a.click()
     window.URL.revokeObjectURL(url)
+  }
+
+  const handleUpdate = async (item: Item) => {
+    try {
+      setIsUpdating(true)
+      setError(null)
+
+      // First, get the current version of the item
+      const { data: currentItem, error: fetchError } = await supabase
+        .from('items')
+        .select('version')
+        .eq('id', item.id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      // Update the item with version check
+      const { error: updateError } = await supabase
+        .from('items')
+        .update({
+          name: item.name,
+          description: item.description,
+          category: item.category,
+          quantity: item.quantity,
+          version: (currentItem?.version || 0) + 1
+        })
+        .eq('id', item.id)
+        .eq('version', currentItem?.version || 0) // Only update if version matches
+
+      if (updateError) {
+        if (updateError.code === 'PGRST116') {
+          // This error code indicates the version check failed
+          throw new Error('This item was modified by another user. Please refresh and try again.')
+        }
+        throw updateError
+      }
+
+      toast({
+        title: "Success",
+        description: "Item updated successfully",
+      })
+
+      // Refresh the items list
+      await fetchItems()
+    } catch (error) {
+      console.error('Error updating item:', error)
+      setError(error instanceof Error ? error.message : 'Failed to update item')
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update item",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   // Filter items based on search query and category
