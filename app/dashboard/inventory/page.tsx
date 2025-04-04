@@ -492,8 +492,22 @@ export default function InventoryPage() {
                         id="name"
                         placeholder="Enter item name"
                         value={newItem.name}
-                        onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                        onChange={handleNameChange}
+                        className={cn(
+                          nameExists && "border-red-500 focus-visible:ring-red-500"
+                        )}
                       />
+                      {isCheckingName && (
+                        <div className="text-sm text-muted-foreground flex items-center">
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Checking name...
+                        </div>
+                      )}
+                      {nameExists && (
+                        <div className="text-sm text-red-500">
+                          An item with this name already exists
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="description">Description</Label>
