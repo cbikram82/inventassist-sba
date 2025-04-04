@@ -51,6 +51,7 @@ export default function DashboardLayout({
   const [isLoading, setIsLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>("")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [userEmail, setUserEmail] = useState<string>("")
 
   useEffect(() => {
     let mounted = true
@@ -87,13 +88,14 @@ export default function DashboardLayout({
 
         const { data: userData } = await supabase
           .from('users')
-          .select('role')
+          .select('role, email')
           .eq('id', session.user.id)
           .single()
 
         if (mounted) {
           setUserRole(userData?.role || '')
           setIsAdmin(userData?.role === 'admin')
+          setUserEmail(userData?.email || '')
           setIsLoading(false)
         }
 
@@ -190,6 +192,7 @@ export default function DashboardLayout({
             </Link>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
+            <span className="text-sm text-muted-foreground">{userEmail}</span>
             <Button variant="ghost" onClick={handleSignOut}>
               Sign Out
             </Button>
