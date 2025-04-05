@@ -20,6 +20,8 @@ interface Item {
   description: string
   quantity: number
   category: string
+  location: string
+  person_name?: string
 }
 
 interface Category {
@@ -64,7 +66,9 @@ export default function DashboardPage() {
     name: "",
     description: "",
     quantity: "",
-    category: ""
+    category: "",
+    location: "Safestore",
+    person_name: ""
   })
 
   useEffect(() => {
@@ -105,6 +109,23 @@ export default function DashboardPage() {
 
       if (itemsError) throw itemsError
 
+      // Fetch low stock items
+      const { data: lowStockItems, error: lowStockError } = await supabase
+        .from('items')
+        .select('*')
+        .lte('quantity', 10)
+        .order('quantity', { ascending: true })
+
+      if (lowStockError) throw lowStockError
+
+      // Fetch out of stock count
+      const { count: outOfStockCount, error: outOfStockError } = await supabase
+        .from('items')
+        .select('*', { count: 'exact', head: true })
+        .eq('quantity', 0)
+
+      if (outOfStockError) throw outOfStockError
+
       // Fetch all users with their auth data
       const { data: users, error: usersDataError } = await supabase
         .from('users')
@@ -144,8 +165,8 @@ export default function DashboardPage() {
         totalUsers: usersCount || 0,
         nextEvent: eventData?.next_event || 'No upcoming events',
         recentUsers: usersWithStatus || [],
-        lowStockItems: [],
-        outOfStockItems: 0
+        lowStockItems: lowStockItems || [],
+        outOfStockItems: outOfStockCount || 0
       })
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
@@ -229,13 +250,24 @@ export default function DashboardPage() {
         return
       }
 
+      if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
+        toast({
+          title: "Error",
+          description: "Person name is required when location is Home",
+          variant: "destructive",
+        })
+        return
+      }
+
       const { error } = await supabase
         .from('items')
         .insert([{
           name: newItem.name,
           description: newItem.description,
           quantity: parseInt(newItem.quantity) || 0,
-          category: selectedCategory
+          category: selectedCategory,
+          location: newItem.location,
+          person_name: newItem.location === 'Home' ? newItem.person_name : null
         }])
 
       if (error) throw error
@@ -250,7 +282,9 @@ export default function DashboardPage() {
         name: "",
         description: "",
         quantity: "",
-        category: ""
+        category: "",
+        location: "Safestore",
+        person_name: ""
       })
       setSelectedCategory("")
       setNameExists(false)
@@ -507,6 +541,32 @@ export default function DashboardPage() {
                             onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                           />
                         </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="location">Location</Label>
+                          <Select 
+                            value={newItem.location} 
+                            onValueChange={(value) => setNewItem({ ...newItem, location: value, person_name: "" })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Safestore">Safestore</SelectItem>
+                              <SelectItem value="Home">Home</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {newItem.location === 'Home' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="person_name">Person Name</Label>
+                            <Input 
+                              id="person_name" 
+                              placeholder="Enter person name"
+                              value={newItem.person_name}
+                              onChange={(e) => setNewItem({ ...newItem, person_name: e.target.value })}
+                            />
+                          </div>
+                        )}
                         <div className="space-y-2">
                           <Label htmlFor="category">Category</Label>
                           <div className="flex gap-2">
