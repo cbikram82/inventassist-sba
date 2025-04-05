@@ -63,6 +63,7 @@ export default function InventoryPage() {
   const [newCategoryName, setNewCategoryName] = useState("")
   const [userRole, setUserRole] = useState<string>("")
   const [isAddingItem, setIsAddingItem] = useState(false)
+  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false)
   const [newItem, setNewItem] = useState({
     name: "",
     description: "",
@@ -171,6 +172,8 @@ export default function InventoryPage() {
     }
 
     try {
+      setIsAddingItem(true)
+
       if (!newItem.name.trim()) {
         toast({
           title: "Error",
@@ -228,6 +231,9 @@ export default function InventoryPage() {
       setSelectedCategory("")
       setNameExists(false)
       
+      // Close dialog
+      setIsAddItemDialogOpen(false)
+      
       // Refresh data
       fetchItems()
     } catch (error) {
@@ -237,6 +243,8 @@ export default function InventoryPage() {
         description: error instanceof Error ? error.message : "Failed to add item",
         variant: "destructive",
       })
+    } finally {
+      setIsAddingItem(false)
     }
   }
 
@@ -482,7 +490,7 @@ export default function InventoryPage() {
               </SelectContent>
             </Select>
             {(userRole === 'admin' || userRole === 'editor') && (
-              <Dialog>
+              <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
                     <Plus className="mr-2 h-4 w-4" />
@@ -599,7 +607,13 @@ export default function InventoryPage() {
                         </Dialog>
                       </div>
                     </div>
-                    <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
+                    <Button 
+                      className="w-full" 
+                      onClick={handleAddItem}
+                      disabled={isAddingItem}
+                    >
+                      {isAddingItem ? "Adding..." : "Add Item"}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
