@@ -634,6 +634,7 @@ export default function InventoryPage() {
                       <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
                       <th className="h-12 px-4 text-left align-middle font-medium">Description</th>
                       <th className="h-12 px-4 text-center align-middle font-medium">Category</th>
+                      <th className="h-12 px-4 text-center align-middle font-medium">Location</th>
                       <th className="h-12 px-4 text-center align-middle font-medium">Quantity</th>
                       <th className="h-12 px-4 text-right align-middle font-medium">Actions</th>
                     </tr>
@@ -641,7 +642,7 @@ export default function InventoryPage() {
                   <tbody className="[&_tr:last-child]:border-0">
                     {filteredItems.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                        <td colSpan={6} className="p-4 text-center text-muted-foreground">
                           No items found
                         </td>
                       </tr>
@@ -657,6 +658,18 @@ export default function InventoryPage() {
                           <td className="p-4 align-middle text-center">
                             <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                               {item.category}
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle text-center">
+                            <div className="flex flex-col items-center">
+                              <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                                {item.location}
+                              </div>
+                              {item.location === 'Home' && item.person_name && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {item.person_name}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="p-4 align-middle text-center">
