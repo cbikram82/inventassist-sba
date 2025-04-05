@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, LayoutDashboard, Package, BarChart, Settings, Users } from "lucide-react"
+import { Menu, LayoutDashboard, Package, BarChart, Settings, Users, Home, Calendar } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -163,26 +163,55 @@ export default function DashboardLayout({
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-[240px] sm:w-[280px]">
-                <nav className="flex flex-col space-y-1">
-                  {sidebarNavItems.map((item) => (
+                <nav className="grid items-start gap-2">
+                  <Link
+                    href="/dashboard"
+                    className={cn(
+                      "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      pathname === "/dashboard" ? "bg-accent" : "transparent"
+                    )}
+                  >
+                    <Home className="mr-2 h-4 w-4" />
+                    <span>Dashboard</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/inventory"
+                    className={cn(
+                      "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      pathname === "/dashboard/inventory" ? "bg-accent" : "transparent"
+                    )}
+                  >
+                    <Package className="mr-2 h-4 w-4" />
+                    <span>Inventory</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/event-items"
+                    className={cn(
+                      "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      pathname === "/dashboard/event-items" ? "bg-accent" : "transparent"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    <span>Event Items</span>
+                  </Link>
+                  {isAdmin && (
                     <Link
-                      key={item.href}
-                      href={item.href}
+                      href="/dashboard/users"
                       className={cn(
-                        "flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                        pathname === item.href ? "bg-accent" : "transparent"
+                        "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                        pathname === "/dashboard/users" ? "bg-accent" : "transparent"
                       )}
                     >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {item.title}
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>Users</span>
                     </Link>
-                  ))}
-                  <div className="mt-auto pt-4 border-t">
-                    <div className="px-3 py-2">
-                      <p className="text-sm text-muted-foreground">{userEmail}</p>
-                    </div>
-                  </div>
+                  )}
                 </nav>
+                <div className="mt-auto pt-4 border-t">
+                  <div className="px-3 py-2">
+                    <p className="text-sm text-muted-foreground">{userEmail}</p>
+                  </div>
+                </div>
               </SheetContent>
             </Sheet>
             <Link href="/dashboard" className="flex items-center space-x-2">
@@ -206,26 +235,55 @@ export default function DashboardLayout({
       <div className="container flex-1">
         <div className="flex flex-col md:flex-row">
           <aside className="hidden md:block w-[240px] shrink-0 border-r pr-4 py-4">
-            <nav className="flex flex-col space-y-1 h-full">
-              {sidebarNavItems.map((item) => (
+            <nav className="grid items-start gap-2">
+              <Link
+                href="/dashboard"
+                className={cn(
+                  "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                  pathname === "/dashboard" ? "bg-accent" : "transparent"
+                )}
+              >
+                <Home className="mr-2 h-4 w-4" />
+                <span>Dashboard</span>
+              </Link>
+              <Link
+                href="/dashboard/inventory"
+                className={cn(
+                  "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                  pathname === "/dashboard/inventory" ? "bg-accent" : "transparent"
+                )}
+              >
+                <Package className="mr-2 h-4 w-4" />
+                <span>Inventory</span>
+              </Link>
+              <Link
+                href="/dashboard/event-items"
+                className={cn(
+                  "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                  pathname === "/dashboard/event-items" ? "bg-accent" : "transparent"
+                )}
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                <span>Event Items</span>
+              </Link>
+              {isAdmin && (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  href="/dashboard/users"
                   className={cn(
-                    "flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                    pathname === item.href ? "bg-accent" : "transparent"
+                    "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                    pathname === "/dashboard/users" ? "bg-accent" : "transparent"
                   )}
                 >
-                  <item.icon className="mr-2 h-4 w-4" />
-                  {item.title}
+                  <Users className="mr-2 h-4 w-4" />
+                  <span>Users</span>
                 </Link>
-              ))}
-              <div className="mt-auto pt-4 border-t">
-                <div className="px-3 py-2">
-                  <p className="text-sm text-muted-foreground">{userEmail}</p>
-                </div>
-              </div>
+              )}
             </nav>
+            <div className="mt-auto pt-4 border-t">
+              <div className="px-3 py-2">
+                <p className="text-sm text-muted-foreground">{userEmail}</p>
+              </div>
+            </div>
           </aside>
           <main className="flex-1 py-4 md:pl-8">
             {children}
