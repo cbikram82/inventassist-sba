@@ -14,6 +14,7 @@ import { addInventoryItem, updateInventoryItem } from "@/app/actions"
 import { CategorySelector } from "./category-selector"
 import { DatePicker } from "./ui/date-picker"
 import { cn } from "@/lib/utils"
+import { Switch } from "@/components/ui/switch"
 
 interface ItemFormProps {
   onCancel: () => void
@@ -30,6 +31,7 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
     date: initialData?.date || new Date().toISOString().split("T")[0],
     location: initialData?.location || "Safestore",
     personName: initialData?.personName || "",
+    exclude_from_low_stock: initialData?.exclude_from_low_stock || false,
   })
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -266,6 +268,19 @@ export function ItemForm({ onCancel, onSuccess, initialData }: ItemFormProps) {
                 {errors.personName && <p className="text-sm text-red-500">{errors.personName}</p>}
               </div>
             )}
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="exclude-from-low-stock"
+                checked={formData.exclude_from_low_stock}
+                onCheckedChange={(checked) => setFormData({
+                  ...formData,
+                  exclude_from_low_stock: checked,
+                })}
+              />
+              <Label htmlFor="exclude-from-low-stock" className="text-sm">
+                Exclude from low stock display
+              </Label>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
