@@ -111,6 +111,13 @@ export default function DashboardPage() {
 
       if (itemsError) throw itemsError
 
+      // Fetch total categories
+      const { count: categoriesCount, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*', { count: 'exact', head: true })
+
+      if (categoriesError) throw categoriesError
+
       // Fetch low stock items
       const { data: lowStockItems, error: lowStockError } = await supabase
         .from('items')
@@ -165,7 +172,7 @@ export default function DashboardPage() {
 
       setStats({
         totalItems: itemsCount || 0,
-        totalCategories: categories.length || 0,
+        totalCategories: categoriesCount || 0,
         totalUsers: usersCount || 0,
         nextEvent: eventData?.next_event || 'No upcoming events',
         recentUsers: usersWithStatus || [],
