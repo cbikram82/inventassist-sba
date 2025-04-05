@@ -413,6 +413,9 @@ export default function InventoryPage() {
           description: item.description,
           category: item.category,
           quantity: item.quantity,
+          location: item.location,
+          person_name: item.location === 'Home' ? item.person_name : null,
+          exclude_from_low_stock: item.exclude_from_low_stock,
           version: (currentItem?.version || 0) + 1
         })
         .eq('id', item.id)

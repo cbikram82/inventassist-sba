@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const [lowStockItems, setLowStockItems] = useState<Item[]>([])
 
   useEffect(() => {
     const checkSession = async () => {
@@ -63,6 +64,22 @@ export default function ReportsPage() {
     fetchData()
   }, [])
 
+  const fetchLowStockItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .or('quantity.eq.0,quantity.lte.10')
+        .eq('exclude_from_low_stock', false)
+        .order('quantity', { ascending: true })
+
+      if (error) throw error
+      setLowStockItems(data || [])
+    } catch (error) {
+      console.error('Error fetching low stock items:', error)
+    }
+  }
+
   // Calculate items per category for the pie chart
   const categoryData: CategoryData[] = items.reduce((acc: CategoryData[], item) => {
     const existingCategory = acc.find(cat => cat.name === item.category)
@@ -75,10 +92,7 @@ export default function ReportsPage() {
   }, [])
 
   // Filter low stock items
-  const lowStockItems = items.filter(item => item.quantity <= 10)
-  const outOfStockItems = lowStockItems.filter(item => item.quantity === 0)
   const lowStockItemsCount = lowStockItems.length
-  const outOfStockItemsCount = outOfStockItems.length
 
   if (isLoading) {
     return (
@@ -164,14 +178,6 @@ export default function ReportsPage() {
                 </div>
                 <p className="text-2xl font-bold text-yellow-500 mt-2">{lowStockItemsCount}</p>
                 <p className="text-sm text-muted-foreground mt-1">Items with quantity ≤ 10</p>
-              </div>
-              <div className="rounded-lg border p-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                  <h3 className="font-semibold">Out of Stock</h3>
-                </div>
-                <p className="text-2xl font-bold text-red-500 mt-2">{outOfStockItemsCount}</p>
-                <p className="text-sm text-muted-foreground mt-1">Items with quantity = 0</p>
               </div>
             </div>
 
