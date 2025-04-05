@@ -70,11 +70,13 @@ export default function DashboardPage() {
     location: "Safestore",
     person_name: ""
   })
+  const [lowStockItems, setLowStockItems] = useState<Array<{ id: string; name: string; quantity: number }>>([])
 
   useEffect(() => {
     fetchData()
     fetchCategories()
     checkAdminStatus()
+    fetchLowStockItems()
   }, [])
 
   const checkAdminStatus = async () => {
@@ -113,8 +115,10 @@ export default function DashboardPage() {
       const { data: lowStockItems, error: lowStockError } = await supabase
         .from('items')
         .select('*')
-        .lte('quantity', 10)
+        .or('quantity.eq.0,quantity.lte.10')
+        .eq('exclude_from_low_stock', false)
         .order('quantity', { ascending: true })
+        .limit(5)
 
       if (lowStockError) throw lowStockError
 
@@ -349,6 +353,23 @@ export default function DashboardPage() {
     }
   }
 
+  const fetchLowStockItems = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .or('quantity.eq.0,quantity.lte.10')
+        .eq('exclude_from_low_stock', false)
+        .order('quantity', { ascending: true })
+        .limit(5)
+
+      if (error) throw error
+      setLowStockItems(data || [])
+    } catch (error) {
+      console.error('Error fetching low stock items:', error)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -462,7 +483,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats?.lowStockItems.map((item: { id: string; name: string; quantity: number }) => (
+                {lowStockItems.map((item: { id: string; name: string; quantity: number }) => (
                   <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                     <div>
                       <div className="font-medium">{item.name}</div>

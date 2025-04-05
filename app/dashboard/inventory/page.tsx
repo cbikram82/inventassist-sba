@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 
 // Configure page to be dynamic and not cached
 export const dynamic = 'force-dynamic'
@@ -37,6 +38,7 @@ interface Item {
   category: string
   location: string
   person_name?: string
+  exclude_from_low_stock: boolean
 }
 
 interface Category {
@@ -70,7 +72,8 @@ export default function InventoryPage() {
     quantity: "",
     category: "",
     location: "Safestore",
-    person_name: ""
+    person_name: "",
+    exclude_from_low_stock: false
   })
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
@@ -209,7 +212,8 @@ export default function InventoryPage() {
           quantity: parseInt(newItem.quantity) || 0,
           category: selectedCategory,
           location: newItem.location,
-          person_name: newItem.location === 'Home' ? newItem.person_name : null
+          person_name: newItem.location === 'Home' ? newItem.person_name : null,
+          exclude_from_low_stock: newItem.exclude_from_low_stock
         }])
 
       if (error) throw error
@@ -226,7 +230,8 @@ export default function InventoryPage() {
         quantity: "",
         category: "",
         location: "Safestore",
-        person_name: ""
+        person_name: "",
+        exclude_from_low_stock: false
       })
       setSelectedCategory("")
       setNameExists(false)
@@ -606,6 +611,16 @@ export default function InventoryPage() {
                           </DialogContent>
                         </Dialog>
                       </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="exclude-from-low-stock"
+                        checked={newItem.exclude_from_low_stock}
+                        onCheckedChange={(checked) => setNewItem({ ...newItem, exclude_from_low_stock: checked })}
+                      />
+                      <Label htmlFor="exclude-from-low-stock" className="text-sm">
+                        Exclude from low stock display
+                      </Label>
                     </div>
                     <Button 
                       className="w-full" 
