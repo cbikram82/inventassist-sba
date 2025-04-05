@@ -79,6 +79,7 @@ export default function InventoryPage() {
   const [nameExists, setNameExists] = useState(false)
   const [isDeletingItem, setIsDeletingItem] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [editingItem, setEditingItem] = useState<Item | null>(null)
 
   useEffect(() => {
     fetchItems()

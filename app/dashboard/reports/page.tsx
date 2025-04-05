@@ -53,6 +53,17 @@ export default function ReportsPage() {
 
         if (error) throw error
         setItems(data || [])
+        
+        // Fetch low stock items
+        const { data: lowStockData, error: lowStockError } = await supabase
+          .from('items')
+          .select('*')
+          .or('quantity.eq.0,quantity.lte.10')
+          .eq('exclude_from_low_stock', false)
+          .order('quantity', { ascending: true })
+
+        if (lowStockError) throw lowStockError
+        setLowStockItems(lowStockData || [])
       } catch (error) {
         console.error('Error fetching data:', error)
         setError(error instanceof Error ? error.message : 'Failed to load data')
@@ -63,22 +74,6 @@ export default function ReportsPage() {
 
     fetchData()
   }, [])
-
-  const fetchLowStockItems = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .or('quantity.eq.0,quantity.lte.10')
-        .eq('exclude_from_low_stock', false)
-        .order('quantity', { ascending: true })
-
-      if (error) throw error
-      setLowStockItems(data || [])
-    } catch (error) {
-      console.error('Error fetching low stock items:', error)
-    }
-  }
 
   // Calculate items per category for the pie chart
   const categoryData: CategoryData[] = items.reduce((acc: CategoryData[], item) => {
