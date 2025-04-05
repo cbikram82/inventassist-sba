@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Plus, Users, Package, BarChart, AlertTriangle } from "lucide-react"
+import { Loader2, Plus, Users, Package, BarChart, AlertTriangle, LayoutGrid, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 interface Item {
   id: string
@@ -30,23 +31,28 @@ interface Category {
 }
 
 interface DashboardStats {
+  totalUsers: number
   totalItems: number
   totalCategories: number
-  totalUsers: number
   nextEvent: string
   recentUsers: Array<{
     id: string
     email: string
     role: string
-    created_at: string
+    last_activity: string | null
     last_sign_in_at: string | null
   }>
-  lowStockItems: Array<{
-    id: string
-    name: string
-    quantity: number
-  }>
+  lowStockItems: Array<{ id: string; name: string; quantity: number }>
   outOfStockItems: number
+}
+
+interface EventItem {
+  id: string
+  item_id: string
+  item_name: string
+  quantity: number
+  event_name: string
+  created_at: string
 }
 
 export default function DashboardPage() {
@@ -71,6 +77,15 @@ export default function DashboardPage() {
     person_name: ""
   })
   const [lowStockItems, setLowStockItems] = useState<Array<{ id: string; name: string; quantity: number }>>([])
+  const [selectedNextEvent, setSelectedNextEvent] = useState<string>("")
+  const [eventItems, setEventItems] = useState<EventItem[]>([])
+  const [availableEvents] = useState([
+    "Sarasawati Puja",
+    "Noboborsho",
+    "Durga Puja",
+    "Kaali Puja"
+  ])
+  const [items, setItems] = useState<Item[]>([])
 
   useEffect(() => {
     fetchData()
@@ -97,6 +112,14 @@ export default function DashboardPage() {
       setIsLoading(true)
       setError(null)
 
+      // Fetch all items
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('items')
+        .select('*')
+        .order('name')
+
+      if (itemsError) throw itemsError
+
       // Fetch total users
       const { count: usersCount, error: usersError } = await supabase
         .from('users')
@@ -105,11 +128,11 @@ export default function DashboardPage() {
       if (usersError) throw usersError
 
       // Fetch total items
-      const { count: itemsCount, error: itemsError } = await supabase
+      const { count: itemsCount, error: itemsCountError } = await supabase
         .from('items')
         .select('*', { count: 'exact', head: true })
 
-      if (itemsError) throw itemsError
+      if (itemsCountError) throw itemsCountError
 
       // Fetch total categories
       const { count: categoriesCount, error: categoriesError } = await supabase
@@ -122,66 +145,38 @@ export default function DashboardPage() {
       const { data: lowStockItems, error: lowStockError } = await supabase
         .from('items')
         .select('*')
-        .or('quantity.eq.0,quantity.lte.10')
+        .lt('quantity', 5)
         .eq('exclude_from_low_stock', false)
-        .order('quantity', { ascending: true })
-        .limit(5)
+        .order('quantity')
 
       if (lowStockError) throw lowStockError
 
-      // Fetch out of stock count
-      const { count: outOfStockCount, error: outOfStockError } = await supabase
-        .from('items')
-        .select('*', { count: 'exact', head: true })
-        .eq('quantity', 0)
+      // Fetch event items if an event is selected
+      if (selectedNextEvent) {
+        const { data: eventItemsData, error: eventItemsError } = await supabase
+          .from('event_items')
+          .select('*')
+          .eq('event_name', selectedNextEvent)
+          .order('created_at', { ascending: false })
 
-      if (outOfStockError) throw outOfStockError
-
-      // Fetch all users with their auth data
-      const { data: users, error: usersDataError } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (usersDataError) throw usersDataError
-
-      // Get current user's session
-      const { data: { session } } = await supabase.auth.getSession()
-
-      // Get online status based on last activity and current session
-      const usersWithStatus = users.map(user => ({
-        ...user,
-        last_sign_in_at: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
-      }))
-
-      // Update current user's last activity
-      if (session?.user?.id) {
-        await supabase
-          .from('users')
-          .update({ last_activity: new Date().toISOString() })
-          .eq('id', session.user.id)
+        if (eventItemsError) throw eventItemsError
+        setEventItems(eventItemsData || [])
       }
 
-      // Fetch next event
-      const { data: eventData, error: eventError } = await supabase
-        .from('system_settings')
-        .select('next_event')
-        .single()
-
-      if (eventError && eventError.code !== 'PGRST116') throw eventError
-
+      setItems(itemsData || [])
       setStats({
+        totalUsers: usersCount || 0,
         totalItems: itemsCount || 0,
         totalCategories: categoriesCount || 0,
-        totalUsers: usersCount || 0,
-        nextEvent: eventData?.next_event || 'No upcoming events',
-        recentUsers: usersWithStatus || [],
+        nextEvent: selectedNextEvent || 'No upcoming events',
+        recentUsers: [],
         lowStockItems: lowStockItems || [],
-        outOfStockItems: outOfStockCount || 0
+        outOfStockItems: 0
       })
+      setLowStockItems(lowStockItems || [])
     } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load dashboard data')
+      console.error('Error fetching data:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load data')
     } finally {
       setIsLoading(false)
     }
@@ -405,48 +400,110 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Total Items</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Users
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Items
+              </CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.totalItems || 0}</div>
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader>
-              <CardTitle>Total Categories</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Categories
+              </CardTitle>
+              <LayoutGrid className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.totalCategories || 0}</div>
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader>
-              <CardTitle>Next Event</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Next Event
+              </CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              {isAdmin ? (
-                <Select value={stats?.nextEvent} onValueChange={handleEventChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select next event" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sarasawati Puja">Sarasawati Puja</SelectItem>
-                    <SelectItem value="Noboborsho">Noboborsho</SelectItem>
-                    <SelectItem value="Durga Puja">Durga Puja</SelectItem>
-                    <SelectItem value="Kaali Puja">Kaali Puja</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="text-2xl font-bold text-green-500">{stats?.nextEvent}</div>
-              )}
+              <Select value={selectedNextEvent} onValueChange={setSelectedNextEvent}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select next event" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableEvents.map(event => (
+                    <SelectItem key={event} value={event}>
+                      {event}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardContent>
           </Card>
         </div>
+
+        {selectedNextEvent && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{selectedNextEvent} Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Remaining</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {eventItems.map((eventItem) => {
+                    const originalItem = items.find(item => item.id === eventItem.item_id)
+                    const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
+                    
+                    return (
+                      <TableRow key={eventItem.id}>
+                        <TableCell>{eventItem.item_name}</TableCell>
+                        <TableCell>{eventItem.quantity}</TableCell>
+                        <TableCell>
+                          <span className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                          )}>
+                            {remaining}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {eventItems.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-4">
+                        No items found for {selectedNextEvent}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           {isAdmin && (
