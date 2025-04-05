@@ -573,49 +573,6 @@ export default function InventoryPage() {
                         />
                       </div>
                     )}
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <div className="flex gap-2">
-                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category.id} value={category.name}>
-                                {category.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="icon">
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Add New Category</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="newCategory">Category Name</Label>
-                                <Input
-                                  id="newCategory"
-                                  placeholder="Enter category name"
-                                  value={newCategoryName}
-                                  onChange={(e) => setNewCategoryName(e.target.value)}
-                                />
-                              </div>
-                              <Button onClick={handleAddCategory} className="w-full">
-                                Add Category
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </div>
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="exclude-from-low-stock"
