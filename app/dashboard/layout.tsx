@@ -194,6 +194,16 @@ export default function DashboardLayout({
                     <Calendar className="mr-2 h-4 w-4" />
                     <span>Event Items</span>
                   </Link>
+                  <Link
+                    href="/dashboard/reports"
+                    className={cn(
+                      "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                      pathname === "/dashboard/reports" ? "bg-accent" : "transparent"
+                    )}
+                  >
+                    <BarChart className="mr-2 h-4 w-4" />
+                    <span>Reports</span>
+                  </Link>
                   {isAdmin && (
                     <Link
                       href="/dashboard/users"
@@ -265,6 +275,16 @@ export default function DashboardLayout({
               >
                 <Calendar className="mr-2 h-4 w-4" />
                 <span>Event Items</span>
+              </Link>
+              <Link
+                href="/dashboard/reports"
+                className={cn(
+                  "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                  pathname === "/dashboard/reports" ? "bg-accent" : "transparent"
+                )}
+              >
+                <BarChart className="mr-2 h-4 w-4" />
+                <span>Reports</span>
               </Link>
               {isAdmin && (
                 <Link

@@ -56,6 +56,11 @@ export default function EventItemsPage() {
     "Kaali Puja"
   ])
 
+  // Filter event items based on selected event
+  const filteredEventItems = selectedEvent
+    ? eventItems.filter(item => item.event_name === selectedEvent)
+    : eventItems
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -278,7 +283,7 @@ export default function EventItemsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {eventItems.map((eventItem) => {
+                {filteredEventItems.map((eventItem) => {
                   const originalItem = items.find(item => item.id === eventItem.item_id)
                   const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
                   
@@ -307,6 +312,13 @@ export default function EventItemsPage() {
                     </TableRow>
                   )
                 })}
+                {filteredEventItems.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-4">
+                      {selectedEvent ? `No items found for ${selectedEvent}` : "No items found"}
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
