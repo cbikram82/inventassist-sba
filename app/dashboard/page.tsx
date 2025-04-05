@@ -501,44 +501,37 @@ export default function DashboardPage() {
               <CardTitle>{selectedNextEvent} Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Remaining</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {eventItems.length > 0 ? (
-                    eventItems.map((eventItem) => {
-                      const originalItem = items.find(item => item.id === eventItem.item_id)
-                      const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
-                      
-                      return (
-                        <TableRow key={eventItem.id}>
-                          <TableCell>{eventItem.item_name}</TableCell>
-                          <TableCell>{eventItem.quantity}</TableCell>
-                          <TableCell>
-                            <span className={cn(
-                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                              remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                            )}>
-                              {remaining}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-4">
-                        No items found for {selectedNextEvent}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                {eventItems.length > 0 ? (
+                  eventItems.map((eventItem) => {
+                    const originalItem = items.find(item => item.id === eventItem.item_id)
+                    const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
+                    
+                    return (
+                      <div key={eventItem.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                        <div>
+                          <div className="font-medium">{eventItem.item_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Quantity: {eventItem.quantity}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                          )}>
+                            Remaining: {remaining}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No items found for {selectedNextEvent}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
