@@ -94,6 +94,10 @@ export default function DashboardPage() {
     fetchLowStockItems()
   }, [])
 
+  useEffect(() => {
+    fetchData()
+  }, [selectedNextEvent])
+
   const checkAdminStatus = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
@@ -127,6 +131,32 @@ export default function DashboardPage() {
 
       if (usersError) throw usersError
 
+      // Fetch users with their auth data
+      const { data: usersData, error: usersDataError } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (usersDataError) throw usersDataError
+
+      // Get current user's session
+      const { data: { session } } = await supabase.auth.getSession()
+
+      // Get online status based on last activity and current session
+      const usersWithStatus = usersData.map(user => ({
+        ...user,
+        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
+      }))
+
+      // Update current user's last activity
+      if (session?.user?.id) {
+        await supabase
+          .from('users')
+          .update({ last_activity: new Date().toISOString() })
+          .eq('id', session.user.id)
+      }
+
       // Fetch total items
       const { count: itemsCount, error: itemsCountError } = await supabase
         .from('items')
@@ -159,8 +189,15 @@ export default function DashboardPage() {
           .eq('event_name', selectedNextEvent)
           .order('created_at', { ascending: false })
 
-        if (eventItemsError) throw eventItemsError
-        setEventItems(eventItemsData || [])
+        if (eventItemsError) {
+          console.error('Error fetching event items:', eventItemsError)
+          setEventItems([])
+        } else {
+          console.log('Fetched event items:', eventItemsData)
+          setEventItems(eventItemsData || [])
+        }
+      } else {
+        setEventItems([])
       }
 
       setItems(itemsData || [])
@@ -169,7 +206,7 @@ export default function DashboardPage() {
         totalItems: itemsCount || 0,
         totalCategories: categoriesCount || 0,
         nextEvent: selectedNextEvent || 'No upcoming events',
-        recentUsers: [],
+        recentUsers: usersWithStatus || [],
         lowStockItems: lowStockItems || [],
         outOfStockItems: 0
       })
@@ -473,26 +510,27 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {eventItems.map((eventItem) => {
-                    const originalItem = items.find(item => item.id === eventItem.item_id)
-                    const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
-                    
-                    return (
-                      <TableRow key={eventItem.id}>
-                        <TableCell>{eventItem.item_name}</TableCell>
-                        <TableCell>{eventItem.quantity}</TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                            remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                          )}>
-                            {remaining}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                  {eventItems.length === 0 && (
+                  {eventItems.length > 0 ? (
+                    eventItems.map((eventItem) => {
+                      const originalItem = items.find(item => item.id === eventItem.item_id)
+                      const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
+                      
+                      return (
+                        <TableRow key={eventItem.id}>
+                          <TableCell>{eventItem.item_name}</TableCell>
+                          <TableCell>{eventItem.quantity}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                              remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                            )}>
+                              {remaining}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  ) : (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center py-4">
                         No items found for {selectedNextEvent}
@@ -518,19 +556,19 @@ export default function DashboardPage() {
                       <div>
                         <div className="font-medium">{user.email}</div>
                         <div className="text-sm text-muted-foreground">
-                          Role: {user.role} • Joined {new Date(user.created_at).toLocaleDateString()}
+                          Role: {user.role} • Joined {new Date(user.last_sign_in_at || '').toLocaleDateString()}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className={cn(
                           "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                          user.last_sign_in_at ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                          user.last_activity ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                         )}>
-                          {user.last_sign_in_at ? "Active" : "Inactive"}
+                          {user.last_activity ? "Active" : "Inactive"}
                         </div>
-                        {user.last_sign_in_at && (
+                        {user.last_activity && (
                           <div className="text-xs text-muted-foreground mt-1">
-                            Last active: {new Date(user.last_sign_in_at).toLocaleString()}
+                            Last active: {new Date(user.last_activity).toLocaleString()}
                           </div>
                         )}
                       </div>
