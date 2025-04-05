@@ -588,13 +588,14 @@ export default function InventoryPage() {
                         />
                       </div>
                     )}
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 py-2 border-t">
                       <Switch
                         id="exclude-from-low-stock"
                         checked={newItem.exclude_from_low_stock}
                         onCheckedChange={(checked) => setNewItem({ ...newItem, exclude_from_low_stock: checked })}
+                        className="data-[state=checked]:bg-inventassist-orange"
                       />
-                      <Label htmlFor="exclude-from-low-stock" className="text-sm">
+                      <Label htmlFor="exclude-from-low-stock" className="text-sm font-medium">
                         Exclude from low stock display
                       </Label>
                     </div>
