@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, Users, Package, BarChart, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 interface Item {
   id: string
@@ -27,16 +28,23 @@ interface Category {
 }
 
 interface DashboardStats {
-  totalUsers: number
   totalItems: number
+  totalCategories: number
+  totalUsers: number
+  nextEvent: string
   recentUsers: Array<{
     id: string
     email: string
+    role: string
     created_at: string
     last_sign_in_at: string | null
-    role: string
   }>
-  nextEvent: string
+  lowStockItems: Array<{
+    id: string
+    name: string
+    quantity: number
+  }>
+  outOfStockItems: number
 }
 
 export default function DashboardPage() {
@@ -131,10 +139,13 @@ export default function DashboardPage() {
       if (eventError && eventError.code !== 'PGRST116') throw eventError
 
       setStats({
-        totalUsers: usersCount || 0,
         totalItems: itemsCount || 0,
+        totalCategories: categories.length || 0,
+        totalUsers: usersCount || 0,
+        nextEvent: eventData?.next_event || 'No upcoming events',
         recentUsers: usersWithStatus || [],
-        nextEvent: eventData?.next_event || 'No upcoming events'
+        lowStockItems: [],
+        outOfStockItems: 0
       })
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
@@ -335,19 +346,19 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader>
-              <CardTitle>Total Users</CardTitle>
+              <CardTitle>Total Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+              <div className="text-2xl font-bold">{stats?.totalItems || 0}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Total Items</CardTitle>
+              <CardTitle>Total Categories</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalItems || 0}</div>
+              <div className="text-2xl font-bold">{stats?.totalCategories || 0}</div>
             </CardContent>
           </Card>
 
@@ -376,39 +387,71 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Users</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {stats?.recentUsers.map(user => (
+                    <div key={user.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                      <div>
+                        <div className="font-medium">{user.email}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Role: {user.role} • Joined {new Date(user.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          user.last_sign_in_at ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                        )}>
+                          {user.last_sign_in_at ? "Active" : "Inactive"}
+                        </div>
+                        {user.last_sign_in_at && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Last active: {new Date(user.last_sign_in_at).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
-              <CardTitle>Users</CardTitle>
+              <CardTitle>Low Stock Items</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats?.recentUsers.map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                {stats?.lowStockItems.map((item: { id: string; name: string; quantity: number }) => (
+                  <div key={item.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                     <div>
-                      <div className="font-medium">{user.email}</div>
+                      <div className="font-medium">{item.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        Role: {user.role} • Joined {new Date(user.created_at).toLocaleDateString()}
+                        Quantity: {item.quantity}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className={cn(
                         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                        user.last_sign_in_at ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                        item.quantity === 0 ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
                       )}>
-                        {user.last_sign_in_at ? "Active" : "Inactive"}
+                        {item.quantity === 0 ? "Out of Stock" : "Low Stock"}
                       </div>
-                      {user.last_sign_in_at && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Last active: {new Date(user.last_sign_in_at).toLocaleString()}
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
