@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 
 interface Item {
   id: string
@@ -23,6 +24,9 @@ interface Item {
   description: string
   category: string
   quantity: number
+  location: string
+  person_name?: string
+  exclude_from_low_stock: boolean
 }
 
 interface Category {
@@ -42,6 +46,8 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
     description: "",
     category: "",
     quantity: 0,
+    location: "",
+    exclude_from_low_stock: false,
   })
 
   useEffect(() => {
@@ -186,6 +192,45 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Select
+                value={formData.location}
+                onValueChange={(value) => setFormData({ ...formData, location: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Safestore">Safestore</SelectItem>
+                  <SelectItem value="Home">Home</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.location === 'Home' && (
+              <div className="space-y-2">
+                <Label htmlFor="person_name">Person Name</Label>
+                <Input
+                  id="person_name"
+                  value={formData.person_name || ""}
+                  onChange={(e) => setFormData({ ...formData, person_name: e.target.value })}
+                  required
+                />
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="exclude-from-low-stock"
+                checked={formData.exclude_from_low_stock}
+                onCheckedChange={(checked) => setFormData({ ...formData, exclude_from_low_stock: checked })}
+              />
+              <Label htmlFor="exclude-from-low-stock" className="text-sm">
+                Exclude from low stock display
+              </Label>
             </div>
 
             <div className="flex justify-end space-x-4">
