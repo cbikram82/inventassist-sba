@@ -35,7 +35,8 @@ interface Item {
   description: string
   quantity: number
   category: string
-  created_at: string
+  location: string
+  person_name?: string
 }
 
 interface Category {
@@ -66,7 +67,9 @@ export default function InventoryPage() {
     name: "",
     description: "",
     quantity: "",
-    category: ""
+    category: "",
+    location: "Safestore",
+    person_name: ""
   })
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
@@ -158,49 +161,55 @@ export default function InventoryPage() {
   }
 
   const handleAddItem = async () => {
-    if (!newItem.name || !newItem.description || !newItem.quantity || !selectedCategory) {
+    if (nameExists) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
+        description: "An item with this name already exists. Please choose a different name.",
         variant: "destructive",
       })
       return
     }
 
     try {
-      setIsAddingItem(true)
-      setIsCheckingName(true)
-
-      // Check if item name already exists
-      const { data: existingItems, error: checkError } = await supabase
-        .from('items')
-        .select('name')
-        .ilike('name', newItem.name)
-
-      if (checkError) throw checkError
-
-      if (existingItems && existingItems.length > 0) {
-        setNameExists(true)
+      if (!newItem.name.trim()) {
         toast({
           title: "Error",
-          description: "An item with this name already exists",
+          description: "Item name is required",
           variant: "destructive",
         })
         return
       }
 
-      // Add the new item
-      const { error: insertError } = await supabase
+      if (!selectedCategory) {
+        toast({
+          title: "Error",
+          description: "Please select a category",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
+        toast({
+          title: "Error",
+          description: "Person name is required when location is Home",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const { error } = await supabase
         .from('items')
         .insert([{
           name: newItem.name,
           description: newItem.description,
-          quantity: parseInt(newItem.quantity),
+          quantity: parseInt(newItem.quantity) || 0,
           category: selectedCategory,
-          created_at: new Date().toISOString()
+          location: newItem.location,
+          person_name: newItem.location === 'Home' ? newItem.person_name : null
         }])
 
-      if (insertError) throw insertError
+      if (error) throw error
 
       toast({
         title: "Success",
@@ -212,12 +221,14 @@ export default function InventoryPage() {
         name: "",
         description: "",
         quantity: "",
-        category: ""
+        category: "",
+        location: "Safestore",
+        person_name: ""
       })
       setSelectedCategory("")
       setNameExists(false)
       
-      // Refresh items list
+      // Refresh data
       fetchItems()
     } catch (error) {
       console.error('Error adding item:', error)
@@ -226,9 +237,6 @@ export default function InventoryPage() {
         description: error instanceof Error ? error.message : "Failed to add item",
         variant: "destructive",
       })
-    } finally {
-      setIsAddingItem(false)
-      setIsCheckingName(false)
     }
   }
 
@@ -494,19 +502,13 @@ export default function InventoryPage() {
                         value={newItem.name}
                         onChange={handleNameChange}
                         className={cn(
-                          nameExists && "border-red-500 focus-visible:ring-red-500"
+                          nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
                         )}
                       />
-                      {isCheckingName && (
-                        <div className="text-sm text-muted-foreground flex items-center">
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          Checking name...
-                        </div>
-                      )}
                       {nameExists && (
-                        <div className="text-sm text-red-500">
-                          An item with this name already exists
-                        </div>
+                        <p className="text-sm text-yellow-600">
+                          An item with this name already exists. Please choose a different name.
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -529,14 +531,40 @@ export default function InventoryPage() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label htmlFor="location">Location</Label>
+                      <Select
+                        value={newItem.location}
+                        onValueChange={(value) => setNewItem({ ...newItem, location: value, person_name: "" })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Safestore">Safestore</SelectItem>
+                          <SelectItem value="Home">Home</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {newItem.location === 'Home' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="person_name">Person Name</Label>
+                        <Input
+                          id="person_name"
+                          placeholder="Enter person name"
+                          value={newItem.person_name}
+                          onChange={(e) => setNewItem({ ...newItem, person_name: e.target.value })}
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
                       <div className="flex gap-2">
                         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select category" />
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
                           </SelectTrigger>
                           <SelectContent>
-                            {categories.map(category => (
+                            {categories.map((category) => (
                               <SelectItem key={category.id} value={category.name}>
                                 {category.name}
                               </SelectItem>
@@ -563,17 +591,15 @@ export default function InventoryPage() {
                                   onChange={(e) => setNewCategoryName(e.target.value)}
                                 />
                               </div>
-                              <Button onClick={handleAddCategory} disabled={isAddingCategory} className="w-full">
-                                {isAddingCategory ? "Adding..." : "Add Category"}
+                              <Button onClick={handleAddCategory} className="w-full">
+                                Add Category
                               </Button>
                             </div>
                           </DialogContent>
                         </Dialog>
                       </div>
                     </div>
-                    <Button onClick={handleAddItem} disabled={isAddingItem} className="w-full">
-                      {isAddingItem ? "Adding..." : "Add Item"}
-                    </Button>
+                    <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
                   </div>
                 </DialogContent>
               </Dialog>
