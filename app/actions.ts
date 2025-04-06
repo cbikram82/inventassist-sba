@@ -217,42 +217,65 @@ interface CheckoutTaskWithItems extends CheckoutTask {
 }
 
 export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithItems> {
-  // First get the task with event information
-  const { data: task, error: taskError } = await supabase
-    .from('checkout_tasks')
-    .select(`
-      *,
-      event:events (
-        name
-      )
-    `)
-    .eq('id', taskId)
-    .single();
+  try {
+    // First get the task with event information
+    const { data: task, error: taskError } = await supabase
+      .from('checkout_tasks')
+      .select(`
+        *,
+        event:events (
+          name
+        ),
+        created_by_user:users!checkout_tasks_created_by_fkey (
+          name
+        )
+      `)
+      .eq('id', taskId)
+      .single();
 
-  if (taskError) throw taskError;
+    if (taskError) {
+      console.error('Error fetching checkout task:', taskError);
+      throw new Error(`Failed to fetch checkout task: ${taskError.message}`);
+    }
 
-  // Then get the checkout items with their related data
-  const { data: checkoutItems, error: itemsError } = await supabase
-    .from('checkout_items')
-    .select(`
-      *,
-      item:items (
-        name,
-        category,
-        quantity
-      ),
-      event_item:event_items (
-        quantity
-      )
-    `)
-    .eq('checkout_task_id', taskId);
+    if (!task) {
+      throw new Error(`Checkout task not found with ID: ${taskId}`);
+    }
 
-  if (itemsError) throw itemsError;
+    // Then get the checkout items with their related data
+    const { data: checkoutItems, error: itemsError } = await supabase
+      .from('checkout_items')
+      .select(`
+        *,
+        item:items (
+          id,
+          name,
+          category,
+          quantity
+        ),
+        event_item:event_items (
+          id,
+          quantity
+        ),
+        checked_by_user:users!fk_checked_by (
+          name
+        )
+      `)
+      .eq('checkout_task_id', taskId);
 
-  return {
-    ...task,
-    checkout_items: checkoutItems || []
-  } as CheckoutTaskWithItems;
+    if (itemsError) {
+      console.error('Error fetching checkout items:', itemsError);
+      throw new Error(`Failed to fetch checkout items: ${itemsError.message}`);
+    }
+
+    return {
+      ...task,
+      checkout_items: checkoutItems || []
+    } as CheckoutTaskWithItems;
+  } catch (error) {
+    console.error('Error in getCheckoutTask:', error);
+    throw error;
+  }
 }
 
 export async function updateCheckoutItem(
