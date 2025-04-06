@@ -19,6 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { CheckoutDialog } from '@/components/checkout-dialog';
+import { createCheckoutTask, getCheckoutTask } from '@/app/actions';
+import { CheckoutItemWithDetails, CheckoutTaskState, CheckoutTaskType } from '@/types/checkout';
+import { useUser } from '@/lib/useUser';
 
 interface Item {
   id: string
@@ -39,8 +43,14 @@ interface EventItem {
   created_at: string
 }
 
+interface Event {
+  id: string;
+  name: string;
+}
+
 export default function EventItemsPage() {
   const { toast } = useToast()
+  const { user } = useUser()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<Item[]>([])
@@ -55,6 +65,8 @@ export default function EventItemsPage() {
     "Durga Puja",
     "Kaali Puja"
   ])
+  const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
+  const [currentCheckoutTask, setCurrentCheckoutTask] = useState<CheckoutTaskState | null>(null);
 
   // Filter event items based on selected event
   const filteredEventItems = selectedEvent
@@ -177,6 +189,42 @@ export default function EventItemsPage() {
     }
   }
 
+  const handleCheckout = async (type: CheckoutTaskType) => {
+    if (!selectedEvent || !user?.id) return;
+
+    try {
+      // Create a new checkout task
+      const task = await createCheckoutTask(selectedEvent, type, user.id);
+
+      // Get the task with items
+      const taskWithItems = await getCheckoutTask(task.id);
+
+      if (taskWithItems && taskWithItems.checkout_items) {
+        const { id, checkout_items } = taskWithItems;
+        setCurrentCheckoutTask({
+          id,
+          items: checkout_items,
+          type
+        });
+
+        setIsCheckoutDialogOpen(true);
+      }
+    } catch (error) {
+      console.error('Error creating checkout task:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create checkout task",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCheckoutComplete = () => {
+    // Refresh the event items list
+    fetchData();
+    setCurrentCheckoutTask(null);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -205,94 +253,101 @@ export default function EventItemsPage() {
           </p>
         </div>
 
-        <div className="flex justify-between items-center">
-          <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select Event" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableEvents.map(event => (
-                <SelectItem key={event} value={event}>
-                  {event}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <Card>
+          <CardHeader>
+            <CardTitle>Event Selection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEvents.map(event => (
+                      <SelectItem key={event} value={event}>
+                        {event}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="flex gap-2">
-            {selectedEvent && (
-              <Button
-                variant="outline"
-                onClick={() => window.print()}
-                className="print:hidden"
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Print
-              </Button>
-            )}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Item
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Item to Event</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="event">Event</Label>
-                    <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select event" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableEvents.map(event => (
-                          <SelectItem key={event} value={event}>
-                            {event}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <div className="flex gap-4">
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button disabled={!selectedEvent}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Item
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Item to Event</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="item">Item</Label>
+                        <Select value={selectedItem} onValueChange={setSelectedItem}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {items.map(item => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name} ({item.quantity} available)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="1"
+                          value={quantity}
+                          onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <Button onClick={handleAddItem}>Add Item</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {selectedEvent && (
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={() => handleCheckout('checkout')}
+                      disabled={!selectedEvent || filteredEventItems.length === 0}
+                    >
+                      Check Out Items
+                    </Button>
+                    <Button
+                      onClick={() => handleCheckout('checkin')}
+                      disabled={!selectedEvent || filteredEventItems.length === 0}
+                    >
+                      Check In Items
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="item">Item</Label>
-                    <Select value={selectedItem} onValueChange={setSelectedItem}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select item" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {items.map(item => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name} (Available: {item.quantity})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                  <Button 
-                    className="w-full" 
-                    onClick={handleAddItem}
-                  >
-                    Add Item
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {currentCheckoutTask && (
+          <CheckoutDialog
+            isOpen={isCheckoutDialogOpen}
+            onClose={() => setIsCheckoutDialogOpen(false)}
+            taskId={currentCheckoutTask.id}
+            items={currentCheckoutTask.items}
+            type={currentCheckoutTask.type}
+            onComplete={handleCheckoutComplete}
+          />
+        )}
 
         <Card className="print:shadow-none print:border-0">
           <CardHeader className="print:hidden">
