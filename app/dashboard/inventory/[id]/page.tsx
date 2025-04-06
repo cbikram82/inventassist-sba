@@ -92,45 +92,40 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsSaving(true)
+    setError(null)
+
     try {
+      // Validate required fields
       if (!formData.name.trim()) {
-        toast({
-          title: "Error",
-          description: "Item name is required",
-          variant: "destructive",
-        })
+        setError("Item name is required")
         return
       }
 
       if (!formData.category) {
-        toast({
-          title: "Error",
-          description: "Category is required",
-          variant: "destructive",
-        })
+        setError("Category is required")
         return
       }
 
       if (formData.location === 'Home' && !formData.person_name?.trim()) {
-        toast({
-          title: "Error",
-          description: "Person name is required when location is Home",
-          variant: "destructive",
-        })
+        setError("Person name is required when location is Home")
         return
+      }
+
+      // Prepare update data
+      const updateData = {
+        name: formData.name.trim(),
+        description: formData.description?.trim() || null, // Make description optional
+        quantity: formData.quantity,
+        category: formData.category,
+        location: formData.location,
+        person_name: formData.location === 'Home' ? formData.person_name?.trim() : null,
+        exclude_from_low_stock: formData.exclude_from_low_stock
       }
 
       const { error } = await supabase
         .from('items')
-        .update({
-          name: formData.name,
-          description: formData.description || null,
-          quantity: formData.quantity,
-          category: formData.category,
-          location: formData.location,
-          person_name: formData.location === 'Home' ? formData.person_name : null,
-          exclude_from_low_stock: formData.exclude_from_low_stock
-        })
+        .update(updateData)
         .eq('id', params.id)
 
       if (error) throw error
@@ -142,12 +137,10 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
 
       router.push('/dashboard/inventory')
     } catch (error) {
-      console.error('Error updating item:', error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update item",
-        variant: "destructive",
-      })
+      console.error("Error updating item:", error)
+      setError(error instanceof Error ? error.message : "Failed to update item")
+    } finally {
+      setIsSaving(false)
     }
   }
 
