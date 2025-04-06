@@ -103,8 +103,7 @@ export async function parseCSVFile(file: File): Promise<ImportResult> {
               category,
               quantity,
               description,
-              location: "Safestore",
-              exclude_from_low_stock: false
+              location: "Safestore"
             })
           } catch (err) {
             result.errors.push(`Error parsing row ${i}: ${err}`)
