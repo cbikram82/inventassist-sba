@@ -436,7 +436,6 @@ export default function EventItemsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Item Name</TableHead>
-                        <TableHead>Original Quantity</TableHead>
                         <TableHead>Remaining Quantity</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Last Checked By</TableHead>
@@ -448,7 +447,6 @@ export default function EventItemsPage() {
                       {filteredEventItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>{item.item_name}</TableCell>
-                          <TableCell>{item.quantity}</TableCell>
                           <TableCell>{item.remaining_quantity}</TableCell>
                           <TableCell>
                             <span className={cn(
