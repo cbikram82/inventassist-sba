@@ -221,15 +221,7 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
     // First get the task with event information
     const { data: task, error: taskError } = await supabase
       .from('checkout_tasks')
-      .select(`
-        *,
-        event:events!event_name (
-          name
-        ),
-        created_by_user:users!created_by (
-          name
-        )
-      `)
+      .select('*')
       .eq('id', taskId)
       .single();
 
@@ -242,25 +234,34 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
       throw new Error(`Checkout task not found with ID: ${taskId}`);
     }
 
-    // Then get the checkout items with their related data
+    // Get event information
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('name')
+      .eq('name', task.event_name)
+      .single();
+
+    if (eventError) {
+      console.error('Error fetching event:', eventError);
+      throw new Error(`Failed to fetch event: ${eventError.message}`);
+    }
+
+    // Get created by user information
+    const { data: createdByUser, error: userError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', task.created_by)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user:', userError);
+      throw new Error(`Failed to fetch user: ${userError.message}`);
+    }
+
+    // Get checkout items
     const { data: checkoutItems, error: itemsError } = await supabase
       .from('checkout_items')
-      .select(`
-        *,
-        item:items!item_id (
-          id,
-          name,
-          category,
-          quantity
-        ),
-        event_item:event_items!event_item_id (
-          id,
-          quantity
-        ),
-        checked_by_user:users!checked_by (
-          name
-        )
-      `)
+      .select('*')
       .eq('checkout_task_id', taskId);
 
     if (itemsError) {
@@ -268,9 +269,59 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
       throw new Error(`Failed to fetch checkout items: ${itemsError.message}`);
     }
 
+    // Get item details for each checkout item
+    const checkoutItemsWithDetails = await Promise.all(
+      (checkoutItems || []).map(async (item) => {
+        // Get item details
+        const { data: itemDetails, error: itemError } = await supabase
+          .from('items')
+          .select('id, name, category, quantity')
+          .eq('id', item.item_id)
+          .single();
+
+        if (itemError) {
+          console.error('Error fetching item details:', itemError);
+          throw new Error(`Failed to fetch item details: ${itemError.message}`);
+        }
+
+        // Get event item details
+        const { data: eventItem, error: eventItemError } = await supabase
+          .from('event_items')
+          .select('id, quantity')
+          .eq('id', item.event_item_id)
+          .single();
+
+        if (eventItemError) {
+          console.error('Error fetching event item:', eventItemError);
+          throw new Error(`Failed to fetch event item: ${eventItemError.message}`);
+        }
+
+        // Get checked by user details
+        const { data: checkedByUser, error: checkedByError } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', item.checked_by)
+          .single();
+
+        if (checkedByError) {
+          console.error('Error fetching checked by user:', checkedByError);
+          throw new Error(`Failed to fetch checked by user: ${checkedByError.message}`);
+        }
+
+        return {
+          ...item,
+          item: itemDetails,
+          event_item: eventItem,
+          checked_by_user: checkedByUser
+        };
+      })
+    );
+
     return {
       ...task,
-      checkout_items: checkoutItems || []
+      event: event,
+      created_by_user: createdByUser,
+      checkout_items: checkoutItemsWithDetails
     } as CheckoutTaskWithItems;
   } catch (error) {
     console.error('Error in getCheckoutTask:', error);
@@ -294,24 +345,10 @@ export async function updateCheckoutItem(
       reason
     });
 
-    // First get the checkout item with its details
+    // First get the checkout item
     const { data: checkoutItem, error: fetchError } = await supabase
       .from('checkout_items')
-      .select(`
-        *,
-        item:items!item_id (
-          id,
-          name,
-          quantity,
-          category
-        ),
-        checkout_task:checkout_tasks!checkout_task_id (
-          type
-        ),
-        checked_by_user:users!checked_by (
-          name
-        )
-      `)
+      .select('*')
       .eq('id', checkoutItemId)
       .single();
 
@@ -324,9 +361,33 @@ export async function updateCheckoutItem(
       throw new Error(`Checkout item not found with ID: ${checkoutItemId}`);
     }
 
+    // Get item details
+    const { data: item, error: itemError } = await supabase
+      .from('items')
+      .select('id, name, quantity, category')
+      .eq('id', checkoutItem.item_id)
+      .single();
+
+    if (itemError) {
+      console.error('Error fetching item:', itemError);
+      throw new Error(`Failed to fetch item: ${itemError.message}`);
+    }
+
+    // Get checkout task details
+    const { data: checkoutTask, error: taskError } = await supabase
+      .from('checkout_tasks')
+      .select('type')
+      .eq('id', checkoutItem.checkout_task_id)
+      .single();
+
+    if (taskError) {
+      console.error('Error fetching checkout task:', taskError);
+      throw new Error(`Failed to fetch checkout task: ${taskError.message}`);
+    }
+
     // For check-in, validate reason if returning less quantity for non-consumable items
-    if (status === 'checked' && checkoutItem.checkout_task.type === 'checkin') {
-      const isConsumable = ['Consumables', 'Puja Consumables'].includes(checkoutItem.item.category);
+    if (status === 'checked' && checkoutTask.type === 'checkin') {
+      const isConsumable = ['Consumables', 'Puja Consumables'].includes(item.category);
       
       if (!isConsumable && actualQuantity < checkoutItem.quantity) {
         if (!reason) {
@@ -338,9 +399,9 @@ export async function updateCheckoutItem(
       const { error: updateItemError } = await supabase
         .from('items')
         .update({
-          quantity: checkoutItem.item.quantity + actualQuantity
+          quantity: item.quantity + actualQuantity
         })
-        .eq('id', checkoutItem.item.id);
+        .eq('id', item.id);
 
       if (updateItemError) {
         console.error('Error updating item quantity:', updateItemError);
@@ -359,17 +420,7 @@ export async function updateCheckoutItem(
         reason: reason || null
       })
       .eq('id', checkoutItemId)
-      .select(`
-        *,
-        item:items!item_id (
-          id,
-          name,
-          category
-        ),
-        checked_by_user:users!checked_by (
-          name
-        )
-      `)
+      .select('*')
       .single();
 
     if (updateError) {
@@ -381,7 +432,27 @@ export async function updateCheckoutItem(
       throw new Error('No data returned after update');
     }
 
-    return updatedItem;
+    // Get checked by user details
+    const { data: checkedByUser, error: userError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching checked by user:', userError);
+      throw new Error(`Failed to fetch checked by user: ${userError.message}`);
+    }
+
+    return {
+      ...updatedItem,
+      item: {
+        id: item.id,
+        name: item.name,
+        category: item.category
+      },
+      checked_by_user: checkedByUser
+    };
   } catch (error) {
     console.error('Error in updateCheckoutItem:', error);
     throw error;
