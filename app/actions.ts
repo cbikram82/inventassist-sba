@@ -115,20 +115,35 @@ export async function createCheckoutTask(eventName: string, type: 'checkout' | '
   try {
     console.log('Creating checkout task with:', { eventName, type, userId });
 
-    // First, get the event ID from the event name
-    const { data: event, error: eventError } = await supabase
+    // First, try to get the event ID from the event name
+    let { data: event, error: eventError } = await supabase
       .from('events')
       .select('id')
       .eq('name', eventName)
       .single();
 
-    if (eventError) {
+    // If event doesn't exist, create it
+    if (eventError?.code === 'PGRST116') {
+      console.log('Event not found, creating new event:', eventName);
+      const { data: newEvent, error: createEventError } = await supabase
+        .from('events')
+        .insert([{ name: eventName }])
+        .select('id')
+        .single();
+
+      if (createEventError) {
+        console.error('Error creating event:', createEventError);
+        throw new Error(`Failed to create event: ${createEventError.message}`);
+      }
+
+      event = newEvent;
+    } else if (eventError) {
       console.error('Error fetching event:', eventError);
       throw new Error(`Failed to fetch event: ${eventError.message}`);
     }
 
     if (!event) {
-      throw new Error(`Event not found: ${eventName}`);
+      throw new Error(`Event not found and could not be created: ${eventName}`);
     }
 
     // Create the checkout task with event_id
