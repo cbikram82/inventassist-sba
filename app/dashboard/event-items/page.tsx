@@ -34,13 +34,22 @@ interface Item {
   person_name?: string
 }
 
-interface EventItem {
+interface ProcessedEventItem {
   id: string
   event_name: string
   item_id: string
   item_name: string
   quantity: number
   created_at: string
+  updated_at: string
+  remaining_quantity: number
+  is_checked_out: boolean
+  last_checked_by?: string
+  last_checked_at?: string
+  checkout_items?: CheckoutItemWithDetails[]
+  item?: {
+    quantity: number
+  }
 }
 
 interface Event {
@@ -54,7 +63,7 @@ export default function EventItemsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<Item[]>([])
-  const [eventItems, setEventItems] = useState<EventItem[]>([])
+  const [eventItems, setEventItems] = useState<ProcessedEventItem[]>([])
   const [selectedEvent, setSelectedEvent] = useState<string>("")
   const [selectedItem, setSelectedItem] = useState<string>("")
   const [quantity, setQuantity] = useState<number>(0)
@@ -102,7 +111,7 @@ export default function EventItemsPage() {
             status,
             checked_by,
             checked_at,
-            user:users (
+            user:users!fk_checked_by (
               name
             )
           )
@@ -114,11 +123,15 @@ export default function EventItemsPage() {
       // Calculate remaining quantities and add checkout status
       const processedEventItems = eventItemsData?.map(eventItem => {
         const checkedOutQuantity = eventItem.checkout_items
-          ?.filter(ci => ci.status === 'checked')
-          .reduce((sum, ci) => sum + ci.actual_quantity, 0) || 0;
+          ?.filter((ci: CheckoutItemWithDetails) => ci.status === 'checked')
+          .reduce((sum: number, ci: CheckoutItemWithDetails) => sum + ci.actual_quantity, 0) || 0;
 
         const lastCheckout = eventItem.checkout_items
-          ?.sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+          ?.sort((a: CheckoutItemWithDetails, b: CheckoutItemWithDetails) => {
+            const dateA = a.checked_at ? new Date(a.checked_at).getTime() : 0;
+            const dateB = b.checked_at ? new Date(b.checked_at).getTime() : 0;
+            return dateB - dateA;
+          })[0];
 
         return {
           ...eventItem,

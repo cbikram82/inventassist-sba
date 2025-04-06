@@ -1,3 +1,19 @@
+export interface CheckoutItem {
+  id: string
+  checkout_task_id: string
+  item_id: string
+  event_item_id: string
+  expected_quantity: number
+  actual_quantity: number
+  status: string
+  checked_by: string
+  checked_at: string
+  reason?: string
+  user?: {
+    name: string
+  }
+}
+
 export interface EventItem {
   id: string
   event_name: string
@@ -10,12 +26,8 @@ export interface EventItem {
   is_checked_out: boolean
   last_checked_by?: string
   last_checked_at?: string
-  checkout_items?: {
-    status: string
-    checked_by: string
-    checked_at: string
-    user: {
-      name: string
-    }
-  }[]
+  checkout_items?: CheckoutItem[]
+  item?: {
+    quantity: number
+  }
 } 
