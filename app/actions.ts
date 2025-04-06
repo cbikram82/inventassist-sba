@@ -223,10 +223,10 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
       .from('checkout_tasks')
       .select(`
         *,
-        event:events (
+        event:events!event_name (
           name
         ),
-        created_by_user:users (
+        created_by_user:users!created_by (
           name
         )
       `)
@@ -247,17 +247,17 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
       .from('checkout_items')
       .select(`
         *,
-        item:items (
+        item:items!item_id (
           id,
           name,
           category,
           quantity
         ),
-        event_item:event_items (
+        event_item:event_items!event_item_id (
           id,
           quantity
         ),
-        checked_by_user:users (
+        checked_by_user:users!checked_by (
           name
         )
       `)
@@ -299,16 +299,16 @@ export async function updateCheckoutItem(
       .from('checkout_items')
       .select(`
         *,
-        item:items (
+        item:items!item_id (
           id,
           name,
           quantity,
           category
         ),
-        checkout_task:checkout_tasks (
+        checkout_task:checkout_tasks!checkout_task_id (
           type
         ),
-        checked_by_user:users (
+        checked_by_user:users!checked_by (
           name
         )
       `)
@@ -361,12 +361,12 @@ export async function updateCheckoutItem(
       .eq('id', checkoutItemId)
       .select(`
         *,
-        item:items (
+        item:items!item_id (
           id,
           name,
           category
         ),
-        checked_by_user:users (
+        checked_by_user:users!checked_by (
           name
         )
       `)
