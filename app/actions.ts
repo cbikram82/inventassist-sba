@@ -113,22 +113,46 @@ export async function deleteInventoryItem(id: string) {
 // Checkout Actions
 export async function createCheckoutTask(eventName: string, type: 'checkout' | 'checkin', userId: string): Promise<CheckoutTask> {
   try {
-    // Start a transaction
+    console.log('Creating checkout task with:', { eventName, type, userId });
+
+    // First, get the event ID from the event name
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id')
+      .eq('name', eventName)
+      .single();
+
+    if (eventError) {
+      console.error('Error fetching event:', eventError);
+      throw new Error(`Failed to fetch event: ${eventError.message}`);
+    }
+
+    if (!event) {
+      throw new Error(`Event not found: ${eventName}`);
+    }
+
+    // Create the checkout task with event_id
     const { data: task, error: taskError } = await supabase
       .from('checkout_tasks')
       .insert({
-        event_name: eventName,
+        event_id: event.id,
         type,
         created_by: userId,
         status: 'pending'
       })
-      .select()
+      .select('*')
       .single();
 
     if (taskError) {
       console.error('Error creating checkout task:', taskError);
-      throw new Error('Failed to create checkout task');
+      throw new Error(`Failed to create checkout task: ${taskError.message}`);
     }
+
+    if (!task) {
+      throw new Error('No task data returned after creation');
+    }
+
+    console.log('Created checkout task:', task);
 
     // Get event items for this event
     const { data: eventItems, error: eventItemsError } = await supabase
@@ -138,8 +162,10 @@ export async function createCheckoutTask(eventName: string, type: 'checkout' | '
 
     if (eventItemsError) {
       console.error('Error fetching event items:', eventItemsError);
-      throw new Error('Failed to fetch event items');
+      throw new Error(`Failed to fetch event items: ${eventItemsError.message}`);
     }
+
+    console.log('Found event items:', eventItems);
 
     if (eventItems && eventItems.length > 0) {
       // Create checkout items for each event item
@@ -152,13 +178,15 @@ export async function createCheckoutTask(eventName: string, type: 'checkout' | '
         status: 'pending'
       }));
 
+      console.log('Creating checkout items:', checkoutItems);
+
       const { error: checkoutItemsError } = await supabase
         .from('checkout_items')
         .insert(checkoutItems);
 
       if (checkoutItemsError) {
         console.error('Error creating checkout items:', checkoutItemsError);
-        throw new Error('Failed to create checkout items');
+        throw new Error(`Failed to create checkout items: ${checkoutItemsError.message}`);
       }
     }
 
@@ -174,10 +202,15 @@ interface CheckoutTaskWithItems extends CheckoutTask {
 }
 
 export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithItems> {
-  // First get the task
+  // First get the task with event information
   const { data: task, error: taskError } = await supabase
     .from('checkout_tasks')
-    .select()
+    .select(`
+      *,
+      event:events (
+        name
+      )
+    `)
     .eq('id', taskId)
     .single();
 
