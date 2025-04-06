@@ -370,17 +370,6 @@ export async function completeCheckoutTask(taskId: string) {
         throw new Error(`Failed to update item quantity: ${updateItemError.message}`);
       }
 
-      // Update event item status
-      const { error: updateEventItemError } = await supabase
-        .from('event_items')
-        .update({ status: 'checked_out' })
-        .eq('id', checkoutItem.event_item_id);
-
-      if (updateEventItemError) {
-        console.error('Error updating event item status:', updateEventItemError);
-        throw new Error(`Failed to update event item status: ${updateEventItemError.message}`);
-      }
-
       // Create audit log
       const { error: auditLogError } = await supabase
         .from('audit_logs')
