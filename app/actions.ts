@@ -226,7 +226,7 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
         event:events (
           name
         ),
-        created_by_user:users!checkout_tasks_created_by_fkey (
+        created_by_user:users (
           name
         )
       `)
@@ -257,7 +257,7 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
           id,
           quantity
         ),
-        checked_by_user:users!fk_checked_by (
+        checked_by_user:users (
           name
         )
       `)
@@ -308,7 +308,7 @@ export async function updateCheckoutItem(
         checkout_task:checkout_tasks (
           type
         ),
-        checked_by_user:users!fk_checked_by (
+        checked_by_user:users (
           name
         )
       `)
@@ -366,7 +366,7 @@ export async function updateCheckoutItem(
           name,
           category
         ),
-        checked_by_user:users!fk_checked_by (
+        checked_by_user:users (
           name
         )
       `)
