@@ -549,28 +549,61 @@ export default function InventoryPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Select 
-                        value={selectedCategory} 
-                        onValueChange={setSelectedCategory}
-                        required
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.length > 0 ? (
-                            categories.map((category) => (
-                              <SelectItem key={category.id} value={category.name}>
-                                {category.name}
+                      <div className="flex gap-2">
+                        <Select 
+                          value={selectedCategory} 
+                          onValueChange={setSelectedCategory}
+                          required
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.length > 0 ? (
+                              categories.map((category) => (
+                                <SelectItem key={category.id} value={category.name}>
+                                  {category.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="" disabled>
+                                No categories available
                               </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="" disabled>
-                              No categories available
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {(userRole === 'admin' || userRole === 'editor') && (
+                          <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Add New Category</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="newCategory">Category Name</Label>
+                                  <Input
+                                    id="newCategory"
+                                    placeholder="Enter category name"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                  />
+                                </div>
+                                <Button 
+                                  className="w-full" 
+                                  onClick={handleAddCategory}
+                                >
+                                  Add Category
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="location">Location</Label>
