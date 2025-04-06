@@ -133,10 +133,17 @@ export default function EventItemsPage() {
             return dateB - dateA;
           })[0];
 
+        const originalQuantity = eventItem.item?.quantity || 0;
+        const remainingQuantity = originalQuantity - checkedOutQuantity;
+
+        // Check if any checkout item has status 'checked'
+        const isCheckedOut = eventItem.checkout_items?.some((ci: CheckoutItemWithDetails) => ci.status === 'checked') || false;
+
         return {
           ...eventItem,
-          quantity: eventItem.item?.quantity || 0 - checkedOutQuantity,
-          is_checked_out: checkedOutQuantity > 0,
+          quantity: originalQuantity,
+          remaining_quantity: remainingQuantity,
+          is_checked_out: isCheckedOut,
           last_checked_by: lastCheckout?.user?.name,
           last_checked_at: lastCheckout?.checked_at
         };
@@ -429,7 +436,8 @@ export default function EventItemsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Item Name</TableHead>
-                        <TableHead>Quantity</TableHead>
+                        <TableHead>Original Quantity</TableHead>
+                        <TableHead>Remaining Quantity</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Last Checked By</TableHead>
                         <TableHead>Last Checked At</TableHead>
@@ -441,6 +449,7 @@ export default function EventItemsPage() {
                         <TableRow key={item.id}>
                           <TableCell>{item.item_name}</TableCell>
                           <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.remaining_quantity}</TableCell>
                           <TableCell>
                             <span className={cn(
                               "px-2 py-1 rounded-full text-xs",
