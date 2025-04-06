@@ -22,7 +22,7 @@ export async function getInventoryItems() {
 
 export async function addInventoryItem(item: Omit<InventoryItem, "id">) {
   try {
-    const { data, error } = await supabase.from("inventory_items").insert([item]).select().single()
+    const { data, error } = await supabase.from("items").insert([item]).select().single()
 
     if (error) {
       console.error("Error adding inventory item:", error)
@@ -40,13 +40,12 @@ export async function addInventoryItem(item: Omit<InventoryItem, "id">) {
 export async function updateInventoryItem(item: InventoryItem) {
   try {
     const { data, error } = await supabase
-      .from("inventory_items")
+      .from("items")
       .update({
         name: item.name,
         quantity: item.quantity,
         category: item.category,
         description: item.description,
-        date: item.date,
         location: item.location,
         personName: item.personName,
         updated_at: new Date().toISOString(),
