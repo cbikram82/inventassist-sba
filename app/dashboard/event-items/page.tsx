@@ -193,11 +193,18 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
+      // Get the session token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
       // Call the API route to create checkout task
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           eventName: selectedEvent,

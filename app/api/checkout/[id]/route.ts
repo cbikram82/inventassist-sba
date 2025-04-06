@@ -1,15 +1,22 @@
 import { NextResponse } from 'next/server';
 import { updateCheckoutItem, completeCheckoutTask } from '@/app/actions';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    // Get the session from the request headers
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -20,7 +27,7 @@ export async function PUT(
       itemId,
       actualQuantity,
       status,
-      session.user.id,
+      user.id,
       reason
     );
     
@@ -39,8 +46,16 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    // Get the session from the request headers
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

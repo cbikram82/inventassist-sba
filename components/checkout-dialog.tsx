@@ -12,6 +12,7 @@ import { updateCheckoutItem, completeCheckoutTask, createAuditLog } from '@/app/
 import { useUser } from '@/lib/useUser';
 import { Loader2 } from 'lucide-react';
 import { DialogFooter } from '@/components/ui/dialog';
+import { supabase } from '@/lib/supabase';
 
 interface CheckoutDialogProps {
   isOpen: boolean;
@@ -68,6 +69,12 @@ export function CheckoutDialog({
       setIsSubmitting(true);
       setError(null);
 
+      // Get the session token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
       // Process each checked item
       for (const item of items) {
         if (checkedItems[item.id]) {
@@ -87,6 +94,7 @@ export function CheckoutDialog({
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
               itemId: item.id,
@@ -105,6 +113,9 @@ export function CheckoutDialog({
       // Complete the checkout task via API
       const completeResponse = await fetch(`/api/checkout/${taskId}`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
       });
 
       if (!completeResponse.ok) {
