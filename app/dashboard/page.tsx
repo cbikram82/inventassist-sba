@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ImportInventory } from "@/components/import-inventory"
 
 interface Item {
   id: string
@@ -805,82 +806,20 @@ export default function DashboardPage() {
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Import Inventory</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="csvFile">CSV File</Label>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const template = [
-                                    ['Name', 'Description', 'Quantity', 'Category'],
-                                    ['Example Item', 'This is an example item', '10', 'Electronics'],
-                                    ['Another Item', 'Another example item', '5', 'Furniture']
-                                  ].map(row => row.join(',')).join('\n')
-
-                                  const blob = new Blob([template], { type: 'text/csv' })
-                                  const url = window.URL.createObjectURL(blob)
-                                  const a = document.createElement('a')
-                                  a.href = url
-                                  a.download = 'inventory_template.csv'
-                                  document.body.appendChild(a)
-                                  a.click()
-                                  window.URL.revokeObjectURL(url)
-                                  document.body.removeChild(a)
-                                }}
-                              >
-                                Download Template
-                              </Button>
-                            </div>
-                            <Input
-                              id="csvFile"
-                              type="file"
-                              accept=".csv"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0]
-                                if (!file) return
-
-                                try {
-                                  const text = await file.text()
-                                  const rows = text.split('\n').map(row => row.split(','))
-                                  const headers = rows[0]
-                                  const data = rows.slice(1).filter(row => row.length === headers.length)
-
-                                  const items = data.map(row => ({
-                                    name: row[0],
-                                    description: row[1],
-                                    quantity: parseInt(row[2]) || 0,
-                                    category: row[3]
-                                  }))
-
-                                  const { error } = await supabase
-                                    .from('items')
-                                    .upsert(items, { onConflict: 'name' })
-
-                                  if (error) throw error
-
-                                  toast({
-                                    title: "Success",
-                                    description: "Inventory imported successfully",
-                                  })
-
-                                  fetchData()
-                                } catch (error) {
-                                  console.error('Error importing inventory:', error)
-                                  toast({
-                                    title: "Error",
-                                    description: "Failed to import inventory. Please check the file format.",
-                                    variant: "destructive",
-                                  })
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
+                        <ImportInventory 
+                          open={true}
+                          onOpenChange={(open) => {
+                            if (!open) {
+                              fetchData()
+                            }
+                          }}
+                          onImportComplete={(items) => {
+                            toast({
+                              title: "Success",
+                              description: `Successfully imported ${items.length} items.`,
+                            })
+                          }}
+                        />
                       </DialogContent>
                     </Dialog>
                   </>
