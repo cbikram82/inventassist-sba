@@ -90,16 +90,47 @@ export default function EventItemsPage() {
 
       if (itemsError) throw itemsError
 
-      // Fetch event items
+      // Fetch event items with checkout information
       const { data: eventItemsData, error: eventItemsError } = await supabase
         .from('event_items')
-        .select('*')
+        .select(`
+          *,
+          item:items (
+            quantity
+          ),
+          checkout_items (
+            status,
+            checked_by,
+            checked_at,
+            user:users (
+              name
+            )
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (eventItemsError) throw eventItemsError
 
+      // Calculate remaining quantities and add checkout status
+      const processedEventItems = eventItemsData?.map(eventItem => {
+        const checkedOutQuantity = eventItem.checkout_items
+          ?.filter(ci => ci.status === 'checked')
+          .reduce((sum, ci) => sum + ci.actual_quantity, 0) || 0;
+
+        const lastCheckout = eventItem.checkout_items
+          ?.sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+
+        return {
+          ...eventItem,
+          remaining_quantity: eventItem.quantity - checkedOutQuantity,
+          is_checked_out: checkedOutQuantity > 0,
+          last_checked_by: lastCheckout?.user?.name,
+          last_checked_at: lastCheckout?.checked_at
+        };
+      }) || [];
+
       setItems(itemsData || [])
-      setEventItems(eventItemsData || [])
+      setEventItems(processedEventItems)
     } catch (error) {
       console.error('Error fetching data:', error)
       setError(error instanceof Error ? error.message : 'Failed to load data')
@@ -381,29 +412,49 @@ export default function EventItemsPage() {
                       Generated on {new Date().toLocaleDateString()}
                     </p>
                   </div>
-                  {filteredEventItems.map((eventItem) => {
-                    const originalItem = items.find(item => item.id === eventItem.item_id)
-                    const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
-                    
-                    return (
-                      <div key={eventItem.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg print:bg-transparent print:border-b print:rounded-none">
-                        <div>
-                          <div className="font-medium">{eventItem.item_name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Quantity: {eventItem.quantity}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={cn(
-                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                            remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                          )}>
-                            Remaining: {remaining}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item Name</TableHead>
+                        <TableHead>Quantity</TableHead>
+                        <TableHead>Remaining</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Checked By</TableHead>
+                        <TableHead>Last Checked At</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEventItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.item_name}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.remaining_quantity}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "px-2 py-1 rounded-full text-xs",
+                              item.is_checked_out ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                            )}>
+                              {item.is_checked_out ? "Checked Out" : "Available"}
+                            </span>
+                          </TableCell>
+                          <TableCell>{item.last_checked_by || "-"}</TableCell>
+                          <TableCell>
+                            {item.last_checked_at ? new Date(item.last_checked_at).toLocaleString() : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteItem(item.id)}
+                            >
+                              Delete
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </>
               ) : (
                 <div className="text-center py-4 text-muted-foreground print:hidden">
