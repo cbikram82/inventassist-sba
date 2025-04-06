@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { toast } from "@/components/ui/use-toast"
 
 interface Item {
   id: string
@@ -91,23 +92,62 @@ export default function EditItemPage({ params }: { params: { id: string } }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSaving(true)
-    setError(null)
-
     try {
+      if (!formData.name.trim()) {
+        toast({
+          title: "Error",
+          description: "Item name is required",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!formData.category) {
+        toast({
+          title: "Error",
+          description: "Category is required",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (formData.location === 'Home' && !formData.person_name?.trim()) {
+        toast({
+          title: "Error",
+          description: "Person name is required when location is Home",
+          variant: "destructive",
+        })
+        return
+      }
+
       const { error } = await supabase
-        .from("items")
-        .update(formData)
-        .eq("id", params.id)
+        .from('items')
+        .update({
+          name: formData.name,
+          description: formData.description || null,
+          quantity: formData.quantity,
+          category: formData.category,
+          location: formData.location,
+          person_name: formData.location === 'Home' ? formData.person_name : null,
+          exclude_from_low_stock: formData.exclude_from_low_stock
+        })
+        .eq('id', params.id)
 
       if (error) throw error
 
-      router.push("/dashboard/inventory")
+      toast({
+        title: "Success",
+        description: "Item updated successfully",
+      })
+
+      router.push('/dashboard/inventory')
     } catch (error) {
-      console.error("Error updating item:", error)
-      setError(error instanceof Error ? error.message : "Failed to update item")
-    } finally {
-      setIsSaving(false)
+      console.error('Error updating item:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update item",
+        variant: "destructive",
+      })
     }
   }
 

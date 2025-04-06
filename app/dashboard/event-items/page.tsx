@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Plus, Package, AlertTriangle } from "lucide-react"
+import { Loader2, Plus, Package, AlertTriangle, Printer } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   Table,
@@ -219,110 +219,88 @@ export default function EventItemsPage() {
             </SelectContent>
           </Select>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Item
+          <div className="flex gap-2">
+            {selectedEvent && (
+              <Button
+                variant="outline"
+                onClick={() => window.print()}
+                className="print:hidden"
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Item to Event List</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="item">Item</Label>
-                  <Select value={selectedItem} onValueChange={setSelectedItem}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an item" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {items.map(item => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name} (Available: {item.quantity})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <Button 
-                  className="w-full" 
-                  onClick={handleAddItem}
-                >
+            )}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
                   Add Item
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+            </Dialog>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader>
+        <Card className="print:shadow-none print:border-0">
+          <CardHeader className="print:hidden">
             <CardTitle>Event Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEventItems.map((eventItem) => {
-                  const originalItem = items.find(item => item.id === eventItem.item_id)
-                  const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
-                  
-                  return (
-                    <TableRow key={eventItem.id}>
-                      <TableCell>{eventItem.event_name}</TableCell>
-                      <TableCell>{eventItem.item_name}</TableCell>
-                      <TableCell>{eventItem.quantity}</TableCell>
-                      <TableCell>
-                        <span className={cn(
-                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                          remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
-                        )}>
-                          {remaining}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteItem(eventItem.id)}
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-                {filteredEventItems.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4">
-                      {selectedEvent ? `No items found for ${selectedEvent}` : "No items found"}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            <div className="space-y-4">
+              {filteredEventItems.length > 0 ? (
+                <>
+                  <div className="hidden print:block text-center mb-4">
+                    <h2 className="text-xl font-bold">{selectedEvent} Items List</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Generated on {new Date().toLocaleDateString()}
+                    </p>
+                  </div>
+                  {filteredEventItems.map((eventItem) => {
+                    const originalItem = items.find(item => item.id === eventItem.item_id)
+                    const remaining = originalItem ? originalItem.quantity - eventItem.quantity : 0
+                    
+                    return (
+                      <div key={eventItem.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg print:bg-transparent print:border-b print:rounded-none">
+                        <div>
+                          <div className="font-medium">{eventItem.item_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Quantity: {eventItem.quantity}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                            remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                          )}>
+                            Remaining: {remaining}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground print:hidden">
+                  No items found for {selectedEvent}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
+
+        <style jsx global>{`
+          @media print {
+            body {
+              padding: 20px;
+            }
+            .no-print {
+              display: none;
+            }
+            .print-only {
+              display: block;
+            }
+          }
+        `}</style>
       </div>
     </div>
   )

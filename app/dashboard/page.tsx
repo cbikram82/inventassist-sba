@@ -549,7 +549,7 @@ export default function DashboardPage() {
                       <div>
                         <div className="font-medium">{user.email}</div>
                         <div className="text-sm text-muted-foreground">
-                          Role: {user.role} • Joined {new Date(user.last_sign_in_at || '').toLocaleDateString()}
+                          Role: {user.role}
                         </div>
                       </div>
                       <div className="text-right">
@@ -561,7 +561,13 @@ export default function DashboardPage() {
                         </div>
                         {user.last_activity && (
                           <div className="text-xs text-muted-foreground mt-1">
-                            Last active: {new Date(user.last_activity).toLocaleString()}
+                            Last active: {new Date(user.last_activity).toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </div>
                         )}
                       </div>

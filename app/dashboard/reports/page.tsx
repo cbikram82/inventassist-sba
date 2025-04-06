@@ -29,6 +29,8 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const [lowStockItems, setLowStockItems] = useState<Item[]>([])
+  const [categoryData, setCategoryData] = useState<{ category: string; quantity: number }[]>([])
+  const [locationData, setLocationData] = useState<{ location: string; count: number }[]>([])
 
   useEffect(() => {
     const checkSession = async () => {
@@ -64,6 +66,45 @@ export default function ReportsPage() {
 
         if (lowStockError) throw lowStockError
         setLowStockItems(lowStockData || [])
+
+        // Fetch items by category
+        const { data: categoryData, error: categoryError } = await supabase
+          .from('items')
+          .select('category, quantity')
+          .order('category')
+
+        if (categoryError) throw categoryError
+
+        // Calculate total quantity by category
+        const categoryTotals = categoryData.reduce((acc: { [key: string]: number }, item) => {
+          acc[item.category] = (acc[item.category] || 0) + item.quantity
+          return acc
+        }, {})
+
+        setCategoryData(Object.entries(categoryTotals).map(([category, quantity]) => ({
+          category,
+          quantity
+        })))
+
+        // Fetch items by location
+        const { data: locationData, error: locationError } = await supabase
+          .from('items')
+          .select('location, quantity')
+          .order('location')
+
+        if (locationError) throw locationError
+
+        // Calculate total quantity by location
+        const locationTotals = locationData.reduce((acc: { [key: string]: number }, item) => {
+          acc[item.location] = (acc[item.location] || 0) + item.quantity
+          return acc
+        }, {})
+
+        setLocationData(Object.entries(locationTotals).map(([location, quantity]) => ({
+          location,
+          count: quantity
+        })))
+
       } catch (error) {
         console.error('Error fetching data:', error)
         setError(error instanceof Error ? error.message : 'Failed to load data')
@@ -73,17 +114,6 @@ export default function ReportsPage() {
     }
 
     fetchData()
-  }, [])
-
-  // Calculate items per category for the pie chart
-  const categoryData: CategoryData[] = items.reduce((acc: CategoryData[], item) => {
-    const existingCategory = acc.find(cat => cat.name === item.category)
-    if (existingCategory) {
-      existingCategory.value++
-    } else {
-      acc.push({ name: item.category, value: 1 })
-    }
-    return acc
   }, [])
 
   // Filter low stock items
@@ -129,35 +159,65 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Items by Category</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  outerRadius={150}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Items by Category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="quantity"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Items by Location</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={locationData}
+                    dataKey="count"
+                    nameKey="location"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {locationData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
@@ -209,6 +269,21 @@ export default function ReportsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .recharts-wrapper {
+            width: 100% !important;
+          }
+          .recharts-surface {
+            width: 100% !important;
+          }
+          .recharts-legend-wrapper {
+            position: relative !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   )
 } 
