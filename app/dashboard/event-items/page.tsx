@@ -237,6 +237,59 @@ export default function EventItemsPage() {
                   Add Item
                 </Button>
               </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Item to Event</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="event">Event</Label>
+                    <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select event" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableEvents.map(event => (
+                          <SelectItem key={event} value={event}>
+                            {event}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="item">Item</Label>
+                    <Select value={selectedItem} onValueChange={setSelectedItem}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map(item => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} (Available: {item.quantity})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quantity">Quantity</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                    />
+                  </div>
+                  <Button 
+                    className="w-full" 
+                    onClick={handleAddItem}
+                  >
+                    Add Item
+                  </Button>
+                </div>
+              </DialogContent>
             </Dialog>
           </div>
         </div>

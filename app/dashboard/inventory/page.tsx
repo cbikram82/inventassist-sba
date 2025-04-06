@@ -209,7 +209,7 @@ export default function InventoryPage() {
         .from('items')
         .insert([{
           name: newItem.name,
-          description: newItem.description,
+          description: newItem.description?.trim() || null,
           quantity: parseInt(newItem.quantity) || 0,
           category: selectedCategory,
           location: newItem.location,
@@ -549,16 +549,26 @@ export default function InventoryPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                        <SelectTrigger>
+                      <Select 
+                        value={selectedCategory} 
+                        onValueChange={setSelectedCategory}
+                        required
+                      >
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.name}>
-                              {category.name}
+                          {categories.length > 0 ? (
+                            categories.map((category) => (
+                              <SelectItem key={category.id} value={category.name}>
+                                {category.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>
+                              No categories available
                             </SelectItem>
-                          ))}
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
