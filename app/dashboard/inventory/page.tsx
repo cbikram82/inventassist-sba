@@ -453,7 +453,7 @@ export default function InventoryPage() {
   // Filter items based on search query and category
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchQuery.toLowerCase())
+                         (item.description ? item.description.toLowerCase().includes(searchQuery.toLowerCase()) : false)
     const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
     return matchesSearch && matchesCategory
   })
