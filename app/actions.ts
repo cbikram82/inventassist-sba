@@ -265,25 +265,30 @@ export async function updateCheckoutItem(
   try {
     console.log('Updating checkout item:', { itemId, actualQuantity, status, userId, reason });
 
-    // Get the item details including category
-    const { data: itemData, error: itemError } = await supabase
-      .from('items')
-      .select('category')
+    // First get the checkout item with its associated item details
+    const { data: checkoutItem, error: checkoutItemError } = await supabase
+      .from('checkout_items')
+      .select(`
+        *,
+        item:items (
+          category
+        )
+      `)
       .eq('id', itemId)
       .single();
 
-    if (itemError?.code === 'PGRST116') {
-      throw new Error(`Item not found with ID: ${itemId}`);
-    } else if (itemError) {
-      throw new Error(`Error fetching item: ${itemError.message}`);
+    if (checkoutItemError?.code === 'PGRST116') {
+      throw new Error(`Checkout item not found with ID: ${itemId}`);
+    } else if (checkoutItemError) {
+      throw new Error(`Error fetching checkout item: ${checkoutItemError.message}`);
     }
 
-    if (!itemData) {
-      throw new Error(`Item not found with ID: ${itemId}`);
+    if (!checkoutItem) {
+      throw new Error(`Checkout item not found with ID: ${itemId}`);
     }
 
     // For non-consumable items during check-in, require a reason if quantities don't match
-    const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(itemData.category);
+    const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(checkoutItem.item.category);
     const isCheckin = status === 'returned';
 
     if (isNonConsumable && isCheckin && !reason) {
