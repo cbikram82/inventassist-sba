@@ -22,6 +22,31 @@ export async function getInventoryItems() {
 
 export async function addInventoryItem(item: Omit<InventoryItem, "id">) {
   try {
+    // First, check if the category exists
+    const { data: existingCategory, error: categoryError } = await supabase
+      .from("categories")
+      .select("id")
+      .eq("name", item.category)
+      .single()
+
+    if (categoryError && categoryError.code !== "PGRST116") { // PGRST116 is "no rows returned"
+      console.error("Error checking category:", categoryError)
+      return { success: false, error: categoryError.message }
+    }
+
+    // If category doesn't exist, create it
+    if (!existingCategory) {
+      const { error: createCategoryError } = await supabase
+        .from("categories")
+        .insert([{ name: item.category }])
+
+      if (createCategoryError) {
+        console.error("Error creating category:", createCategoryError)
+        return { success: false, error: createCategoryError.message }
+      }
+    }
+
+    // Now insert the item
     const { data, error } = await supabase.from("items").insert([item]).select().single()
 
     if (error) {
