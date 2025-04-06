@@ -193,17 +193,28 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
-      // Create a new checkout task
-      const task = await createCheckoutTask(selectedEvent, type, user.id);
+      // Call the API route to create checkout task
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventName: selectedEvent,
+          type,
+        }),
+      });
 
-      // Get the task with items
-      const taskWithItems = await getCheckoutTask(task.id);
+      if (!response.ok) {
+        throw new Error('Failed to create checkout task');
+      }
+
+      const taskWithItems = await response.json();
 
       if (taskWithItems && taskWithItems.checkout_items) {
-        const { id, checkout_items } = taskWithItems;
         setCurrentCheckoutTask({
-          id,
-          items: checkout_items,
+          id: taskWithItems.id,
+          items: taskWithItems.checkout_items,
           type
         });
 

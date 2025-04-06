@@ -82,18 +82,35 @@ export function CheckoutDialog({
             throw new Error(`Please provide a reason for quantity mismatch for ${item.item.name}`);
           }
 
-          await updateCheckoutItem(
-            item.id,
-            newQuantity,
-            type === 'checkout' ? 'checked' : 'returned',
-            item.checked_by || '',
-            reason
-          );
+          // Update checkout item via API
+          const response = await fetch(`/api/checkout/${taskId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              itemId: item.id,
+              actualQuantity: newQuantity,
+              status: type === 'checkout' ? 'checked' : 'returned',
+              reason
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to update checkout item');
+          }
         }
       }
 
-      // Complete the checkout task
-      await completeCheckoutTask(taskId);
+      // Complete the checkout task via API
+      const completeResponse = await fetch(`/api/checkout/${taskId}`, {
+        method: 'POST',
+      });
+
+      if (!completeResponse.ok) {
+        throw new Error('Failed to complete checkout task');
+      }
+
       onComplete();
       onClose();
     } catch (err) {
