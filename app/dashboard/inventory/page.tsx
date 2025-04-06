@@ -199,7 +199,7 @@ export default function InventoryPage() {
       if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
         toast({
           title: "Error",
-          description: "Person name is required when location is Home",
+          description: "Person name is required when location is set to Home",
           variant: "destructive",
         })
         return
