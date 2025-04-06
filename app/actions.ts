@@ -284,6 +284,9 @@ export async function updateCheckoutItem(
         ),
         checkout_task:checkout_tasks (
           type
+        ),
+        checked_by_user:users!checkout_items_checked_by_fkey (
+          name
         )
       `)
       .eq('id', checkoutItemId)
@@ -340,7 +343,7 @@ export async function updateCheckoutItem(
           name,
           category
         ),
-        user:users (
+        checked_by_user:users!checkout_items_checked_by_fkey (
           name
         )
       `)
