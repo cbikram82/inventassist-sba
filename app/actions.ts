@@ -256,71 +256,106 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
 }
 
 export async function updateCheckoutItem(
-  itemId: string,
+  checkoutItemId: string,
   actualQuantity: number,
-  status: 'checked' | 'returned',
+  status: string,
   userId: string,
   reason?: string
-) {
+): Promise<CheckoutItemWithDetails> {
   try {
-    console.log('Updating checkout item:', { itemId, actualQuantity, status, userId, reason });
+    console.log('Updating checkout item:', {
+      checkoutItemId,
+      actualQuantity,
+      status,
+      userId,
+      reason
+    });
 
-    // First get the checkout item with its associated item details
-    const { data: checkoutItem, error: checkoutItemError } = await supabase
+    // First get the checkout item with its details
+    const { data: checkoutItem, error: fetchError } = await supabase
       .from('checkout_items')
       .select(`
         *,
         item:items (
+          id,
+          name,
+          quantity,
           category
+        ),
+        checkout_task:checkout_tasks (
+          type
         )
       `)
-      .eq('id', itemId)
+      .eq('id', checkoutItemId)
       .single();
 
-    if (checkoutItemError?.code === 'PGRST116') {
-      throw new Error(`Checkout item not found with ID: ${itemId}`);
-    } else if (checkoutItemError) {
-      throw new Error(`Error fetching checkout item: ${checkoutItemError.message}`);
+    if (fetchError) {
+      console.error('Error fetching checkout item:', fetchError);
+      throw new Error(`Checkout item not found with ID: ${checkoutItemId}`);
     }
 
     if (!checkoutItem) {
-      throw new Error(`Checkout item not found with ID: ${itemId}`);
+      throw new Error(`Checkout item not found with ID: ${checkoutItemId}`);
     }
 
-    // For non-consumable items during check-in, require a reason if quantities don't match
-    const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(checkoutItem.item.category);
-    const isCheckin = status === 'returned';
+    // For check-in, validate reason if returning less quantity for non-consumable items
+    if (status === 'checked' && checkoutItem.checkout_task.type === 'checkin') {
+      const isConsumable = ['Consumables', 'Puja Consumables'].includes(checkoutItem.item.category);
+      
+      if (!isConsumable && actualQuantity < checkoutItem.quantity) {
+        if (!reason) {
+          throw new Error('Reason is required when returning less quantity for non-consumable items');
+        }
+      }
 
-    if (isNonConsumable && isCheckin && !reason) {
-      throw new Error('Reason is required for non-consumable items with quantity mismatch');
+      // For check-in, we need to add back the quantity to the items table
+      const { error: updateItemError } = await supabase
+        .from('items')
+        .update({
+          quantity: checkoutItem.item.quantity + actualQuantity
+        })
+        .eq('id', checkoutItem.item.id);
+
+      if (updateItemError) {
+        console.error('Error updating item quantity:', updateItemError);
+        throw new Error('Failed to update item quantity');
+      }
     }
 
     // Update the checkout item
-    const { data, error } = await supabase
+    const { data: updatedItem, error: updateError } = await supabase
       .from('checkout_items')
       .update({
-        actual_quantity: actualQuantity,
         status,
+        actual_quantity: actualQuantity,
         checked_by: userId,
         checked_at: new Date().toISOString(),
-        reason
+        reason: reason || null
       })
-      .eq('id', itemId)
-      .select()
+      .eq('id', checkoutItemId)
+      .select(`
+        *,
+        item:items (
+          id,
+          name,
+          category
+        ),
+        user:users (
+          name
+        )
+      `)
       .single();
 
-    if (error?.code === 'PGRST116') {
-      throw new Error(`Checkout item not found with ID: ${itemId}`);
-    } else if (error) {
-      throw new Error(`Error updating checkout item: ${error.message}`);
+    if (updateError) {
+      console.error('Error updating checkout item:', updateError);
+      throw new Error('Failed to update checkout item');
     }
 
-    if (!data) {
-      throw new Error(`No data returned after updating checkout item: ${itemId}`);
+    if (!updatedItem) {
+      throw new Error('No data returned after update');
     }
 
-    console.log('Successfully updated checkout item:', data);
-    return data;
+    return updatedItem;
   } catch (error) {
     console.error('Error in updateCheckoutItem:', error);
     throw error;
