@@ -328,18 +328,98 @@ export async function updateCheckoutItem(
 }
 
 export async function completeCheckoutTask(taskId: string) {
-  const { data, error } = await supabase
-    .from('checkout_tasks')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString()
-    })
-    .eq('id', taskId)
-    .select()
-    .single();
+  try {
+    console.log('Completing checkout task:', taskId);
 
-  if (error) throw error;
-  return data;
+    // First get all checkout items for this task
+    const { data: checkoutItems, error: itemsError } = await supabase
+      .from('checkout_items')
+      .select(`
+        *,
+        item:items (
+          id,
+          quantity
+        ),
+        event_item:event_items (
+          id,
+          quantity
+        )
+      `)
+      .eq('checkout_task_id', taskId);
+
+    if (itemsError) {
+      console.error('Error fetching checkout items:', itemsError);
+      throw new Error(`Failed to fetch checkout items: ${itemsError.message}`);
+    }
+
+    if (!checkoutItems || checkoutItems.length === 0) {
+      throw new Error('No checkout items found for this task');
+    }
+
+    // Update each item's quantity and create audit logs
+    for (const checkoutItem of checkoutItems) {
+      // Update item quantity
+      const newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
+      const { error: updateItemError } = await supabase
+        .from('items')
+        .update({ quantity: newQuantity })
+        .eq('id', checkoutItem.item_id);
+
+      if (updateItemError) {
+        console.error('Error updating item quantity:', updateItemError);
+        throw new Error(`Failed to update item quantity: ${updateItemError.message}`);
+      }
+
+      // Update event item status
+      const { error: updateEventItemError } = await supabase
+        .from('event_items')
+        .update({ status: 'checked_out' })
+        .eq('id', checkoutItem.event_item_id);
+
+      if (updateEventItemError) {
+        console.error('Error updating event item status:', updateEventItemError);
+        throw new Error(`Failed to update event item status: ${updateEventItemError.message}`);
+      }
+
+      // Create audit log
+      const { error: auditLogError } = await supabase
+        .from('audit_logs')
+        .insert({
+          user_id: checkoutItem.checked_by,
+          action: 'checkout',
+          item_id: checkoutItem.item_id,
+          checkout_task_id: taskId,
+          quantity_change: -checkoutItem.actual_quantity
+        });
+
+      if (auditLogError) {
+        console.error('Error creating audit log:', auditLogError);
+        throw new Error(`Failed to create audit log: ${auditLogError.message}`);
+      }
+    }
+
+    // Update checkout task status
+    const { data, error } = await supabase
+      .from('checkout_tasks')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', taskId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating checkout task:', error);
+      throw new Error(`Failed to update checkout task: ${error.message}`);
+    }
+
+    console.log('Successfully completed checkout task:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in completeCheckoutTask:', error);
+    throw error;
+  }
 }
 
 export async function createAuditLog(
