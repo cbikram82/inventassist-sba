@@ -218,10 +218,33 @@ interface CheckoutTaskWithItems extends CheckoutTask {
 
 export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithItems> {
   try {
-    // First get the task with event information
     const { data: task, error: taskError } = await supabase
       .from('checkout_tasks')
-      .select('*')
+      .select(`
+        *,
+        event:events (
+          name
+        ),
+        created_by_user:users (
+          name
+        ),
+        checkout_items (
+          *,
+          item:items (
+            id,
+            name,
+            category,
+            quantity
+          ),
+          event_item:event_items (
+            id,
+            quantity
+          ),
+          checked_by_user:users (
+            name
+          )
+        )
+      `)
       .eq('id', taskId)
       .single();
 
@@ -234,95 +257,7 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
       throw new Error(`Checkout task not found with ID: ${taskId}`);
     }
 
-    // Get event information
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .select('name')
-      .eq('name', task.event_name)
-      .single();
-
-    if (eventError) {
-      console.error('Error fetching event:', eventError);
-      throw new Error(`Failed to fetch event: ${eventError.message}`);
-    }
-
-    // Get created by user information
-    const { data: createdByUser, error: userError } = await supabase
-      .from('users')
-      .select('name')
-      .eq('id', task.created_by)
-      .single();
-
-    if (userError) {
-      console.error('Error fetching user:', userError);
-      throw new Error(`Failed to fetch user: ${userError.message}`);
-    }
-
-    // Get checkout items
-    const { data: checkoutItems, error: itemsError } = await supabase
-      .from('checkout_items')
-      .select('*')
-      .eq('checkout_task_id', taskId);
-
-    if (itemsError) {
-      console.error('Error fetching checkout items:', itemsError);
-      throw new Error(`Failed to fetch checkout items: ${itemsError.message}`);
-    }
-
-    // Get item details for each checkout item
-    const checkoutItemsWithDetails = await Promise.all(
-      (checkoutItems || []).map(async (item) => {
-        // Get item details
-        const { data: itemDetails, error: itemError } = await supabase
-          .from('items')
-          .select('id, name, category, quantity')
-          .eq('id', item.item_id)
-          .single();
-
-        if (itemError) {
-          console.error('Error fetching item details:', itemError);
-          throw new Error(`Failed to fetch item details: ${itemError.message}`);
-        }
-
-        // Get event item details
-        const { data: eventItem, error: eventItemError } = await supabase
-          .from('event_items')
-          .select('id, quantity')
-          .eq('id', item.event_item_id)
-          .single();
-
-        if (eventItemError) {
-          console.error('Error fetching event item:', eventItemError);
-          throw new Error(`Failed to fetch event item: ${eventItemError.message}`);
-        }
-
-        // Get checked by user details
-        const { data: checkedByUser, error: checkedByError } = await supabase
-          .from('users')
-          .select('name')
-          .eq('id', item.checked_by)
-          .single();
-
-        if (checkedByError) {
-          console.error('Error fetching checked by user:', checkedByError);
-          throw new Error(`Failed to fetch checked by user: ${checkedByError.message}`);
-        }
-
-        return {
-          ...item,
-          item: itemDetails,
-          event_item: eventItem,
-          checked_by_user: checkedByUser
-        };
-      })
-    );
-
-    return {
-      ...task,
-      event: event,
-      created_by_user: createdByUser,
-      checkout_items: checkoutItemsWithDetails
-    } as CheckoutTaskWithItems;
+    return task as CheckoutTaskWithItems;
   } catch (error) {
     console.error('Error in getCheckoutTask:', error);
     throw error;
