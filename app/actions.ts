@@ -222,25 +222,25 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
       .from('checkout_tasks')
       .select(`
         *,
-        event:events (
+        event:events!checkout_tasks_event_name_fkey (
           name
         ),
-        created_by_user:users (
+        created_by_user:users!checkout_tasks_created_by_fkey (
           name
         ),
-        checkout_items (
+        checkout_items!checkout_items_checkout_task_id_fkey (
           *,
-          item:items (
+          item:items!checkout_items_item_id_fkey (
             id,
             name,
             category,
             quantity
           ),
-          event_item:event_items (
+          event_item:event_items!checkout_items_event_item_id_fkey (
             id,
             quantity
           ),
-          checked_by_user:users (
+          checked_by_user:users!checkout_items_checked_by_fkey (
             name
           )
         )
@@ -534,5 +534,89 @@ export async function getAuditLogs(startDate?: string, endDate?: string) {
 
   if (error) throw error;
   return data;
+}
+
+export async function fetchData(eventName: string) {
+  try {
+    // First get the event
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('name', eventName)
+      .single();
+
+    if (eventError) {
+      console.error('Error fetching event:', eventError);
+      throw new Error(`Failed to fetch event: ${eventError.message}`);
+    }
+
+    if (!event) {
+      throw new Error(`Event not found: ${eventName}`);
+    }
+
+    // Get event items
+    const { data: eventItems, error: itemsError } = await supabase
+      .from('event_items')
+      .select('*')
+      .eq('event_name', eventName);
+
+    if (itemsError) {
+      console.error('Error fetching event items:', itemsError);
+      throw new Error(`Failed to fetch event items: ${itemsError.message}`);
+    }
+
+    // Get item details for each event item
+    const itemsWithDetails = await Promise.all(
+      (eventItems || []).map(async (eventItem) => {
+        // Get item details
+        const { data: item, error: itemError } = await supabase
+          .from('items')
+          .select('*')
+          .eq('id', eventItem.item_id)
+          .single();
+
+        if (itemError) {
+          console.error('Error fetching item:', itemError);
+          throw new Error(`Failed to fetch item: ${itemError.message}`);
+        }
+
+        // Get checkout items for this event item
+        const { data: checkoutItems, error: checkoutError } = await supabase
+          .from('checkout_items')
+          .select('*')
+          .eq('event_item_id', eventItem.id);
+
+        if (checkoutError) {
+          console.error('Error fetching checkout items:', checkoutError);
+          throw new Error(`Failed to fetch checkout items: ${checkoutError.message}`);
+        }
+
+        // Calculate remaining quantity
+        const checkedOutQuantity = checkoutItems?.reduce((sum, ci) => {
+          if (ci.status === 'checked') {
+            return sum + (ci.actual_quantity || 0);
+          }
+          return sum;
+        }, 0) || 0;
+
+        const remainingQuantity = eventItem.quantity - checkedOutQuantity;
+
+        return {
+          ...eventItem,
+          item,
+          remaining_quantity: remainingQuantity,
+          checkout_items: checkoutItems || []
+        };
+      })
+    );
+
+    return {
+      event,
+      items: itemsWithDetails
+    };
+  } catch (error) {
+    console.error('Error in fetchData:', error);
+    throw error;
+  }
 }
 
