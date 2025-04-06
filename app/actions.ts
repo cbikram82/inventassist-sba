@@ -217,177 +217,110 @@ interface CheckoutTaskWithItems extends CheckoutTask {
 }
 
 export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithItems> {
-  try {
-    const { data: task, error: taskError } = await supabase
-      .from('checkout_tasks')
-      .select(`
-        *,
-        event:events!checkout_tasks_event_name_fkey (
-          name
-        ),
-        created_by_user:users!checkout_tasks_created_by_fkey (
-          name
-        ),
-        checkout_items!checkout_items_checkout_task_id_fkey (
-          *,
-          item:items!checkout_items_item_id_fkey (
-            id,
-            name,
-            category,
-            quantity
-          ),
-          event_item:event_items!checkout_items_event_item_id_fkey (
-            id,
-            quantity
-          ),
-          checked_by_user:users!checkout_items_checked_by_fkey (
-            name
-          )
-        )
-      `)
-      .eq('id', taskId)
-      .single();
+  // First get the task with event information
+  const { data: task, error: taskError } = await supabase
+    .from('checkout_tasks')
+    .select(`
+      *,
+      event:events (
+        name
+      )
+    `)
+    .eq('id', taskId)
+    .single();
 
-    if (taskError) {
-      console.error('Error fetching checkout task:', taskError);
-      throw new Error(`Failed to fetch checkout task: ${taskError.message}`);
-    }
+  if (taskError) throw taskError;
 
-    if (!task) {
-      throw new Error(`Checkout task not found with ID: ${taskId}`);
-    }
+  // Then get the checkout items with their related data
+  const { data: checkoutItems, error: itemsError } = await supabase
+    .from('checkout_items')
+    .select(`
+      *,
+      item:items (
+        name,
+        category,
+        quantity
+      ),
+      event_item:event_items (
+        quantity
+      )
+    `)
+    .eq('checkout_task_id', taskId);
 
-    return task as CheckoutTaskWithItems;
-  } catch (error) {
-    console.error('Error in getCheckoutTask:', error);
-    throw error;
-  }
+  if (itemsError) throw itemsError;
+
+  return {
+    ...task,
+    checkout_items: checkoutItems || []
+  } as CheckoutTaskWithItems;
 }
 
 export async function updateCheckoutItem(
-  checkoutItemId: string,
+  itemId: string,
   actualQuantity: number,
-  status: string,
+  status: 'checked' | 'returned',
   userId: string,
   reason?: string
-): Promise<CheckoutItemWithDetails> {
+) {
   try {
-    console.log('Updating checkout item:', {
-      checkoutItemId,
-      actualQuantity,
-      status,
-      userId,
-      reason
-    });
+    console.log('Updating checkout item:', { itemId, actualQuantity, status, userId, reason });
 
-    // First get the checkout item
-    const { data: checkoutItem, error: fetchError } = await supabase
+    // First get the checkout item with its associated item details
+    const { data: checkoutItem, error: checkoutItemError } = await supabase
       .from('checkout_items')
-      .select('*')
-      .eq('id', checkoutItemId)
+      .select(`
+        *,
+        item:items (
+          category
+        )
+      `)
+      .eq('id', itemId)
       .single();
 
-    if (fetchError) {
-      console.error('Error fetching checkout item:', fetchError);
-      throw new Error(`Checkout item not found with ID: ${checkoutItemId}`);
+    if (checkoutItemError?.code === 'PGRST116') {
+      throw new Error(`Checkout item not found with ID: ${itemId}`);
+    } else if (checkoutItemError) {
+      throw new Error(`Error fetching checkout item: ${checkoutItemError.message}`);
     }
 
     if (!checkoutItem) {
-      throw new Error(`Checkout item not found with ID: ${checkoutItemId}`);
+      throw new Error(`Checkout item not found with ID: ${itemId}`);
     }
 
-    // Get item details
-    const { data: item, error: itemError } = await supabase
-      .from('items')
-      .select('id, name, quantity, category')
-      .eq('id', checkoutItem.item_id)
-      .single();
+    // For non-consumable items during check-in, require a reason if quantities don't match
+    const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(checkoutItem.item.category);
+    const isCheckin = status === 'returned';
 
-    if (itemError) {
-      console.error('Error fetching item:', itemError);
-      throw new Error(`Failed to fetch item: ${itemError.message}`);
-    }
-
-    // Get checkout task details
-    const { data: checkoutTask, error: taskError } = await supabase
-      .from('checkout_tasks')
-      .select('type')
-      .eq('id', checkoutItem.checkout_task_id)
-      .single();
-
-    if (taskError) {
-      console.error('Error fetching checkout task:', taskError);
-      throw new Error(`Failed to fetch checkout task: ${taskError.message}`);
-    }
-
-    // For check-in, validate reason if returning less quantity for non-consumable items
-    if (status === 'checked' && checkoutTask.type === 'checkin') {
-      const isConsumable = ['Consumables', 'Puja Consumables'].includes(item.category);
-      
-      if (!isConsumable && actualQuantity < checkoutItem.quantity) {
-        if (!reason) {
-          throw new Error('Reason is required when returning less quantity for non-consumable items');
-        }
-      }
-
-      // For check-in, we need to add back the quantity to the items table
-      const { error: updateItemError } = await supabase
-        .from('items')
-        .update({
-          quantity: item.quantity + actualQuantity
-        })
-        .eq('id', item.id);
-
-      if (updateItemError) {
-        console.error('Error updating item quantity:', updateItemError);
-        throw new Error('Failed to update item quantity');
-      }
+    if (isNonConsumable && isCheckin && !reason) {
+      throw new Error('Reason is required for non-consumable items with quantity mismatch');
     }
 
     // Update the checkout item
-    const { data: updatedItem, error: updateError } = await supabase
+    const { data, error } = await supabase
       .from('checkout_items')
       .update({
-        status,
         actual_quantity: actualQuantity,
+        status,
         checked_by: userId,
         checked_at: new Date().toISOString(),
-        reason: reason || null
+        reason
       })
-      .eq('id', checkoutItemId)
-      .select('*')
+      .eq('id', itemId)
+      .select()
       .single();
 
-    if (updateError) {
-      console.error('Error updating checkout item:', updateError);
-      throw new Error('Failed to update checkout item');
+    if (error?.code === 'PGRST116') {
+      throw new Error(`Checkout item not found with ID: ${itemId}`);
+    } else if (error) {
+      throw new Error(`Error updating checkout item: ${error.message}`);
     }
 
-    if (!updatedItem) {
-      throw new Error('No data returned after update');
+    if (!data) {
+      throw new Error(`No data returned after updating checkout item: ${itemId}`);
     }
 
-    // Get checked by user details
-    const { data: checkedByUser, error: userError } = await supabase
-      .from('users')
-      .select('name')
-      .eq('id', userId)
-      .single();
-
-    if (userError) {
-      console.error('Error fetching checked by user:', userError);
-      throw new Error(`Failed to fetch checked by user: ${userError.message}`);
-    }
-
-    return {
-      ...updatedItem,
-      item: {
-        id: item.id,
-        name: item.name,
-        category: item.category
-      },
-      checked_by_user: checkedByUser
-    };
+    console.log('Successfully updated checkout item:', data);
+    return data;
   } catch (error) {
     console.error('Error in updateCheckoutItem:', error);
     throw error;
@@ -534,89 +467,5 @@ export async function getAuditLogs(startDate?: string, endDate?: string) {
 
   if (error) throw error;
   return data;
-}
-
-export async function fetchData(eventName: string) {
-  try {
-    // First get the event
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .select('*')
-      .eq('name', eventName)
-      .single();
-
-    if (eventError) {
-      console.error('Error fetching event:', eventError);
-      throw new Error(`Failed to fetch event: ${eventError.message}`);
-    }
-
-    if (!event) {
-      throw new Error(`Event not found: ${eventName}`);
-    }
-
-    // Get event items
-    const { data: eventItems, error: itemsError } = await supabase
-      .from('event_items')
-      .select('*')
-      .eq('event_name', eventName);
-
-    if (itemsError) {
-      console.error('Error fetching event items:', itemsError);
-      throw new Error(`Failed to fetch event items: ${itemsError.message}`);
-    }
-
-    // Get item details for each event item
-    const itemsWithDetails = await Promise.all(
-      (eventItems || []).map(async (eventItem) => {
-        // Get item details
-        const { data: item, error: itemError } = await supabase
-          .from('items')
-          .select('*')
-          .eq('id', eventItem.item_id)
-          .single();
-
-        if (itemError) {
-          console.error('Error fetching item:', itemError);
-          throw new Error(`Failed to fetch item: ${itemError.message}`);
-        }
-
-        // Get checkout items for this event item
-        const { data: checkoutItems, error: checkoutError } = await supabase
-          .from('checkout_items')
-          .select('*')
-          .eq('event_item_id', eventItem.id);
-
-        if (checkoutError) {
-          console.error('Error fetching checkout items:', checkoutError);
-          throw new Error(`Failed to fetch checkout items: ${checkoutError.message}`);
-        }
-
-        // Calculate remaining quantity
-        const checkedOutQuantity = checkoutItems?.reduce((sum, ci) => {
-          if (ci.status === 'checked') {
-            return sum + (ci.actual_quantity || 0);
-          }
-          return sum;
-        }, 0) || 0;
-
-        const remainingQuantity = eventItem.quantity - checkedOutQuantity;
-
-        return {
-          ...eventItem,
-          item,
-          remaining_quantity: remainingQuantity,
-          checkout_items: checkoutItems || []
-        };
-      })
-    );
-
-    return {
-      event,
-      items: itemsWithDetails
-    };
-  } catch (error) {
-    console.error('Error in fetchData:', error);
-    throw error;
-  }
 }
 

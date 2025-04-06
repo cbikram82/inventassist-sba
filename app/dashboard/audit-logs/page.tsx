@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Download } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAuditLogs } from '@/app/actions';
 import { AuditLog } from '@/types/checkout';
@@ -51,45 +51,14 @@ export default function AuditLogsPage() {
     fetchLogs();
   }, [startDate, endDate]);
 
-  const downloadAuditLogs = () => {
-    // Convert audit logs to CSV
-    const headers = ['Date', 'User', 'Action', 'Item', 'Event', 'Quantity Change', 'Reason']
-    const rows = logs.map(log => [
-      new Date(log.created_at).toLocaleString(),
-      log.user?.name || 'Unknown',
-      log.action,
-      log.item?.name || 'Unknown',
-      log.checkout_task?.event?.name || 'Unknown',
-      log.quantity_change,
-      log.reason || ''
-    ])
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n')
-
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `audit-logs-${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
   return (
     <div className="space-y-4 p-3 md:space-y-6 md:p-6">
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Audit Logs</h1>
-          <Button onClick={downloadAuditLogs}>
-            <Download className="mr-2 h-4 w-4" />
-            Download CSV
-          </Button>
+        <div>
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Audit Logs</h2>
+          <p className="text-sm text-muted-foreground">
+            View history of all checkout and check-in activities
+          </p>
         </div>
 
         <div className="flex flex-col md:flex-row gap-4">
