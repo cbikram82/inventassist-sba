@@ -308,7 +308,7 @@ export async function updateCheckoutItem(
         checkout_task:checkout_tasks (
           type
         ),
-        checked_by_user:users!checkout_items_checked_by_fkey (
+        checked_by_user:users!fk_checked_by (
           name
         )
       `)
@@ -366,7 +366,7 @@ export async function updateCheckoutItem(
           name,
           category
         ),
-        checked_by_user:users!checkout_items_checked_by_fkey (
+        checked_by_user:users!fk_checked_by (
           name
         )
       `)
