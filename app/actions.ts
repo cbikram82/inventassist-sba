@@ -112,7 +112,8 @@ export async function deleteInventoryItem(id: string) {
 
 // Checkout Actions
 export async function createCheckoutTask(eventName: string, type: 'checkout' | 'checkin', userId: string): Promise<CheckoutTask> {
-  const { data, error } = await supabase
+  // Start a transaction
+  const { data: task, error: taskError } = await supabase
     .from('checkout_tasks')
     .insert({
       event_name: eventName,
@@ -123,8 +124,35 @@ export async function createCheckoutTask(eventName: string, type: 'checkout' | '
     .select()
     .single();
 
-  if (error) throw error;
-  return data as CheckoutTask;
+  if (taskError) throw taskError;
+
+  // Get event items for this event
+  const { data: eventItems, error: eventItemsError } = await supabase
+    .from('event_items')
+    .select('*')
+    .eq('event_name', eventName);
+
+  if (eventItemsError) throw eventItemsError;
+
+  if (eventItems && eventItems.length > 0) {
+    // Create checkout items for each event item
+    const checkoutItems = eventItems.map(eventItem => ({
+      checkout_task_id: task.id,
+      item_id: eventItem.item_id,
+      event_item_id: eventItem.id,
+      original_quantity: eventItem.quantity,
+      actual_quantity: eventItem.quantity,
+      status: 'pending'
+    }));
+
+    const { error: checkoutItemsError } = await supabase
+      .from('checkout_items')
+      .insert(checkoutItems);
+
+    if (checkoutItemsError) throw checkoutItemsError;
+  }
+
+  return task as CheckoutTask;
 }
 
 interface CheckoutTaskWithItems extends CheckoutTask {
@@ -132,27 +160,37 @@ interface CheckoutTaskWithItems extends CheckoutTask {
 }
 
 export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithItems> {
-  const { data, error } = await supabase
+  // First get the task
+  const { data: task, error: taskError } = await supabase
     .from('checkout_tasks')
-    .select(`
-      *,
-      checkout_items (
-        *,
-        item:items (
-          name,
-          category,
-          quantity
-        ),
-        event_item:event_items (
-          quantity
-        )
-      )
-    `)
+    .select()
     .eq('id', taskId)
     .single();
 
-  if (error) throw error;
-  return data as CheckoutTaskWithItems;
+  if (taskError) throw taskError;
+
+  // Then get the checkout items with their related data
+  const { data: checkoutItems, error: itemsError } = await supabase
+    .from('checkout_items')
+    .select(`
+      *,
+      item:items (
+        name,
+        category,
+        quantity
+      ),
+      event_item:event_items (
+        quantity
+      )
+    `)
+    .eq('checkout_task_id', taskId);
+
+  if (itemsError) throw itemsError;
+
+  return {
+    ...task,
+    checkout_items: checkoutItems || []
+  } as CheckoutTaskWithItems;
 }
 
 export async function updateCheckoutItem(
