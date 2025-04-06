@@ -48,8 +48,8 @@ export async function parseCSVFile(file: File): Promise<ImportResult> {
           }
         }
 
-        // Map optional columns - removed price, only keeping description and date
-        const optionalColumns = ["description", "date"]
+        // Map optional columns - only keeping description
+        const optionalColumns = ["description"]
         for (const column of optionalColumns) {
           const index = lowerCaseHeaders.indexOf(column)
           if (index !== -1) {
@@ -92,28 +92,9 @@ export async function parseCSVFile(file: File): Promise<ImportResult> {
               continue
             }
 
-            // Set default price to 0 instead of parsing it from CSV
-            const price = 0
-
             let description = ""
             if ("description" in headerMap && rowData[headerMap["description"]]) {
               description = rowData[headerMap["description"]].trim()
-            }
-
-            // Parse date or use today's date
-            let date = new Date().toISOString().split("T")[0] // Default to today
-            if ("date" in headerMap && rowData[headerMap["date"]]) {
-              const dateStr = rowData[headerMap["date"]].trim()
-              if (dateStr) {
-                // Validate date format (YYYY-MM-DD)
-                const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-                if (dateRegex.test(dateStr)) {
-                  date = dateStr
-                } else {
-                  result.errors.push(`Row ${i}: Invalid date format. Use YYYY-MM-DD.`)
-                  continue
-                }
-              }
             }
 
             // Add valid item
@@ -121,9 +102,9 @@ export async function parseCSVFile(file: File): Promise<ImportResult> {
               name,
               category,
               quantity,
-              price, // Always 0
               description,
-              date,
+              location: "Safestore",
+              exclude_from_low_stock: false
             })
           } catch (err) {
             result.errors.push(`Error parsing row ${i}: ${err}`)
@@ -180,20 +161,16 @@ function parseCSVRow(row: string): string[] {
   return result
 }
 
-// Generate a template CSV string for downloading - added date field
+// Generate a template CSV string for downloading
 export function generateTemplateCSV(): string {
-  const headers = ["Name", "Category", "Quantity", "Date", "Description"]
-  const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD format
-
+  const headers = ["Name", "Category", "Quantity", "Description"]
   const sampleData = [
-    ["Dinner Plate", "Cookware", "50", today, "White ceramic dinner plates"],
-    ["LED String Lights", "Lighting", "10", today, "Decorative string lights for events"],
-    ["Rice (10kg bag)", "Consumables", "20", today, "Basmati rice in bulk packaging"],
+    ["Dinner Plate", "Cookware", "50", "White ceramic dinner plates"],
+    ["LED String Lights", "Lighting", "10", "Decorative string lights for events"],
+    ["Rice (10kg bag)", "Consumables", "20", "Basmati rice in bulk packaging"],
   ]
 
-  const csvContent = [headers.join(","), ...sampleData.map((row) => row.map((cell) => `"${cell}"`).join(","))].join(
-    "\n",
-  )
+  const csvContent = [headers.join(","), ...sampleData.map((row) => row.map((cell) => `"${cell}"`).join(","))].join("\n")
 
   return csvContent
 }
