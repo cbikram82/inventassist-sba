@@ -262,38 +262,64 @@ export async function updateCheckoutItem(
   userId: string,
   reason?: string
 ) {
-  // Get the item details including category
-  const { data: itemData, error: itemError } = await supabase
-    .from('items')
-    .select('category')
-    .eq('id', itemId)
-    .single();
+  try {
+    console.log('Updating checkout item:', { itemId, actualQuantity, status, userId, reason });
 
-  if (itemError) throw itemError;
+    // Get the item details including category
+    const { data: itemData, error: itemError } = await supabase
+      .from('items')
+      .select('category')
+      .eq('id', itemId)
+      .single();
 
-  // For non-consumable items during check-in, require a reason if quantities don't match
-  const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(itemData.category);
-  const isCheckin = status === 'returned';
+    if (itemError?.code === 'PGRST116') {
+      throw new Error(`Item not found with ID: ${itemId}`);
+    } else if (itemError) {
+      throw new Error(`Error fetching item: ${itemError.message}`);
+    }
 
-  if (isNonConsumable && isCheckin && !reason) {
-    throw new Error('Reason is required for non-consumable items with quantity mismatch');
+    if (!itemData) {
+      throw new Error(`Item not found with ID: ${itemId}`);
+    }
+
+    // For non-consumable items during check-in, require a reason if quantities don't match
+    const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(itemData.category);
+    const isCheckin = status === 'returned';
+
+    if (isNonConsumable && isCheckin && !reason) {
+      throw new Error('Reason is required for non-consumable items with quantity mismatch');
+    }
+
+    // Update the checkout item
+    const { data, error } = await supabase
+      .from('checkout_items')
+      .update({
+        actual_quantity: actualQuantity,
+        status,
+        checked_by: userId,
+        checked_at: new Date().toISOString(),
+        reason
+      })
+      .eq('id', itemId)
+      .select()
+      .single();
+
+    if (error?.code === 'PGRST116') {
+      throw new Error(`Checkout item not found with ID: ${itemId}`);
+    } else if (error) {
+      throw new Error(`Error updating checkout item: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error(`No data returned after updating checkout item: ${itemId}`);
+    }
+
+    console.log('Successfully updated checkout item:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in updateCheckoutItem:', error);
+    throw error;
   }
-
-  const { data, error } = await supabase
-    .from('checkout_items')
-    .update({
-      actual_quantity: actualQuantity,
-      status,
-      checked_by: userId,
-      checked_at: new Date().toISOString(),
-      reason
-    })
-    .eq('id', itemId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
 }
 
 export async function completeCheckoutTask(taskId: string) {
