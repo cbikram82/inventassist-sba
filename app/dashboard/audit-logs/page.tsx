@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
