@@ -135,7 +135,7 @@ export default function EventItemsPage() {
 
         return {
           ...eventItem,
-          remaining_quantity: eventItem.quantity - checkedOutQuantity,
+          quantity: eventItem.item?.quantity || 0 - checkedOutQuantity,
           is_checked_out: checkedOutQuantity > 0,
           last_checked_by: lastCheckout?.user?.name,
           last_checked_at: lastCheckout?.checked_at
@@ -430,7 +430,6 @@ export default function EventItemsPage() {
                       <TableRow>
                         <TableHead>Item Name</TableHead>
                         <TableHead>Quantity</TableHead>
-                        <TableHead>Remaining</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Last Checked By</TableHead>
                         <TableHead>Last Checked At</TableHead>
@@ -442,7 +441,6 @@ export default function EventItemsPage() {
                         <TableRow key={item.id}>
                           <TableCell>{item.item_name}</TableCell>
                           <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{item.remaining_quantity}</TableCell>
                           <TableCell>
                             <span className={cn(
                               "px-2 py-1 rounded-full text-xs",
