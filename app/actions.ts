@@ -112,47 +112,61 @@ export async function deleteInventoryItem(id: string) {
 
 // Checkout Actions
 export async function createCheckoutTask(eventName: string, type: 'checkout' | 'checkin', userId: string): Promise<CheckoutTask> {
-  // Start a transaction
-  const { data: task, error: taskError } = await supabase
-    .from('checkout_tasks')
-    .insert({
-      event_name: eventName,
-      type,
-      created_by: userId,
-      status: 'pending'
-    })
-    .select()
-    .single();
+  try {
+    // Start a transaction
+    const { data: task, error: taskError } = await supabase
+      .from('checkout_tasks')
+      .insert({
+        event_name: eventName,
+        type,
+        created_by: userId,
+        status: 'pending'
+      })
+      .select()
+      .single();
 
-  if (taskError) throw taskError;
+    if (taskError) {
+      console.error('Error creating checkout task:', taskError);
+      throw new Error('Failed to create checkout task');
+    }
 
-  // Get event items for this event
-  const { data: eventItems, error: eventItemsError } = await supabase
-    .from('event_items')
-    .select('*')
-    .eq('event_name', eventName);
+    // Get event items for this event
+    const { data: eventItems, error: eventItemsError } = await supabase
+      .from('event_items')
+      .select('*')
+      .eq('event_name', eventName);
 
-  if (eventItemsError) throw eventItemsError;
+    if (eventItemsError) {
+      console.error('Error fetching event items:', eventItemsError);
+      throw new Error('Failed to fetch event items');
+    }
 
-  if (eventItems && eventItems.length > 0) {
-    // Create checkout items for each event item
-    const checkoutItems = eventItems.map(eventItem => ({
-      checkout_task_id: task.id,
-      item_id: eventItem.item_id,
-      event_item_id: eventItem.id,
-      original_quantity: eventItem.quantity,
-      actual_quantity: eventItem.quantity,
-      status: 'pending'
-    }));
+    if (eventItems && eventItems.length > 0) {
+      // Create checkout items for each event item
+      const checkoutItems = eventItems.map(eventItem => ({
+        checkout_task_id: task.id,
+        item_id: eventItem.item_id,
+        event_item_id: eventItem.id,
+        original_quantity: eventItem.quantity,
+        actual_quantity: eventItem.quantity,
+        status: 'pending'
+      }));
 
-    const { error: checkoutItemsError } = await supabase
-      .from('checkout_items')
-      .insert(checkoutItems);
+      const { error: checkoutItemsError } = await supabase
+        .from('checkout_items')
+        .insert(checkoutItems);
 
-    if (checkoutItemsError) throw checkoutItemsError;
+      if (checkoutItemsError) {
+        console.error('Error creating checkout items:', checkoutItemsError);
+        throw new Error('Failed to create checkout items');
+      }
+    }
+
+    return task as CheckoutTask;
+  } catch (error) {
+    console.error('Error in createCheckoutTask:', error);
+    throw error;
   }
-
-  return task as CheckoutTask;
 }
 
 interface CheckoutTaskWithItems extends CheckoutTask {
