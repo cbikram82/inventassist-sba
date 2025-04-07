@@ -23,6 +23,7 @@ import { CheckoutDialog } from '@/components/checkout-dialog';
 import { createCheckoutTask, getCheckoutTask } from '@/app/actions';
 import { CheckoutItemWithDetails, CheckoutTaskState, CheckoutTaskType } from '@/types/checkout';
 import { useUser } from '@/lib/useUser';
+import { CheckinDialog } from '@/components/checkin-dialog';
 
 interface Item {
   id: string
@@ -76,6 +77,8 @@ export default function EventItemsPage() {
   ])
   const [isCheckoutDialogOpen, setIsCheckoutDialogOpen] = useState(false);
   const [currentCheckoutTask, setCurrentCheckoutTask] = useState<CheckoutTaskState | null>(null);
+  const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
+  const [currentCheckinItems, setCurrentCheckinItems] = useState<CheckoutItemWithDetails[]>([]);
 
   // Filter event items based on selected event
   const filteredEventItems = selectedEvent
@@ -294,6 +297,53 @@ export default function EventItemsPage() {
     setCurrentCheckoutTask(null);
   };
 
+  const handleCheckin = async () => {
+    try {
+      // Get checked out items for the selected event
+      const { data: checkoutItems, error } = await supabase
+        .from('checkout_items')
+        .select(`
+          *,
+          item:items (
+            id,
+            name,
+            category,
+            quantity
+          ),
+          checkout_task:checkout_tasks (
+            event_name
+          )
+        `)
+        .eq('status', 'checked')
+        .eq('checkout_task.event_name', selectedEvent)
+
+      if (error) throw error
+
+      if (!checkoutItems || checkoutItems.length === 0) {
+        toast({
+          title: "No items to check in",
+          description: "There are no checked out items for this event",
+        })
+        return
+      }
+
+      setCurrentCheckinItems(checkoutItems)
+      setIsCheckinDialogOpen(true)
+    } catch (error) {
+      console.error('Error preparing checkin:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to prepare checkin",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleCheckinComplete = () => {
+    fetchData()
+    setCurrentCheckinItems([])
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
@@ -415,6 +465,15 @@ export default function EventItemsPage() {
             items={currentCheckoutTask.items}
             type={currentCheckoutTask.type}
             onComplete={handleCheckoutComplete}
+          />
+        )}
+
+        {currentCheckinItems.length > 0 && (
+          <CheckinDialog
+            isOpen={isCheckinDialogOpen}
+            onClose={() => setIsCheckinDialogOpen(false)}
+            items={currentCheckinItems}
+            onComplete={handleCheckinComplete}
           />
         )}
 
