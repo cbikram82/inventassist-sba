@@ -258,7 +258,7 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
 export async function updateCheckoutItem(
   itemId: string,
   actualQuantity: number,
-  status: 'checked' | 'checked_in',
+  status: 'checked' | 'checked_in' | 'cancelled',
   userId: string,
   reason?: string
 ) {
