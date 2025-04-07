@@ -64,7 +64,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
         const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '');
 
-        // Validate return quantity
+        // Basic validation
         if (returnQuantity <= 0) {
           toast({
             title: "Validation Error",
@@ -74,28 +74,27 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           return;
         }
 
-        // For non-consumable items, validate exact quantity or require reason
-        if (isNonConsumable) {
-          if (returnQuantity !== item.actual_quantity) {
-            if (!reasonCodes[item.id] || !reasons[item.id]) {
-              toast({
-                title: "Validation Error",
-                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide a reason for the mismatch.`,
-                variant: "destructive",
-              });
-              return;
-            }
-          }
-        }
-
-        // For consumable items, validate max quantity
-        if (isConsumable && returnQuantity > item.actual_quantity) {
+        if (returnQuantity > item.actual_quantity) {
           toast({
             title: "Validation Error",
             description: `Return quantity cannot exceed checked out quantity (${item.actual_quantity}) for ${item.item?.name}`,
             variant: "destructive",
           });
           return;
+        }
+
+        // Non-consumable specific validation
+        if (isNonConsumable) {
+          if (returnQuantity !== item.actual_quantity) {
+            if (!reasonCodes[item.id] || !reasons[item.id]) {
+              toast({
+                title: "Validation Error",
+                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          }
         }
       }
 
@@ -215,7 +214,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     <Input
                       type="number"
                       min="0"
-                      max={isConsumable ? undefined : item.actual_quantity}
+                      max={item.actual_quantity}
                       value={returnQuantities[item.id] || ""}
                       onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                     />
@@ -224,6 +223,24 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
                 {requiresReason && (
                   <div className="space-y-2">
+                    <div>
+                      <Label>Reason Code</Label>
+                      <Select
+                        value={reasonCodes[item.id]}
+                        onValueChange={(value) => handleReasonCodeChange(item.id, value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REASON_CODES.map(code => (
+                            <SelectItem key={code.id} value={code.id}>
+                              {code.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div>
                       <Label>Reason Description</Label>
                       <Textarea

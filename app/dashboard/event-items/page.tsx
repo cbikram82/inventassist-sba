@@ -91,81 +91,71 @@ export default function EventItemsPage() {
 
   const fetchData = async () => {
     try {
-      setIsLoading(true)
-      setError(null)
-
-      // Fetch all items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('items')
-        .select('*')
-        .order('name')
-
-      if (itemsError) throw itemsError
-
-      // Fetch event items with checkout information
-      const { data: eventItemsData, error: eventItemsError } = await supabase
+      const { data: eventItems, error: eventItemsError } = await supabase
         .from('event_items')
         .select(`
           *,
           item:items (
+            id,
+            name,
+            category,
             quantity
           ),
-          checkout_items (
-            status,
-            checked_by,
-            checked_at,
-            user:users!fk_checked_by (
-              name
-            )
+          event:events (
+            id,
+            name
           )
         `)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false });
 
-      if (eventItemsError) throw eventItemsError
+      if (eventItemsError) throw eventItemsError;
 
-      // Calculate remaining quantities and add checkout status
-      const processedEventItems = eventItemsData?.map(eventItem => {
-        const checkedOutQuantity = eventItem.checkout_items
-          ?.filter((ci: CheckoutItemWithDetails) => ci.status === 'checked')
-          .reduce((sum: number, ci: CheckoutItemWithDetails) => sum + ci.actual_quantity, 0) || 0;
+      // Get all checkout items for these event items
+      const { data: checkoutItems, error: checkoutItemsError } = await supabase
+        .from('checkout_items')
+        .select('*')
+        .in('event_item_id', eventItems.map(ei => ei.id));
 
-        const checkedInQuantity = eventItem.checkout_items
-          ?.filter((ci: CheckoutItemWithDetails) => ci.status === 'checked_in')
-          .reduce((sum: number, ci: CheckoutItemWithDetails) => sum + ci.actual_quantity, 0) || 0;
+      if (checkoutItemsError) throw checkoutItemsError;
 
-        const lastCheckout = eventItem.checkout_items
-          ?.sort((a: CheckoutItemWithDetails, b: CheckoutItemWithDetails) => {
-            const dateA = a.checked_at ? new Date(a.checked_at).getTime() : 0;
-            const dateB = b.checked_at ? new Date(b.checked_at).getTime() : 0;
-            return dateB - dateA;
-          })[0];
+      // Process each event item
+      const processedItems = eventItems.map(eventItem => {
+        const itemCheckoutItems = checkoutItems.filter(ci => ci.event_item_id === eventItem.id);
+        
+        // Calculate checked out and checked in quantities
+        const checkedOutQuantity = itemCheckoutItems
+          .filter(ci => ci.status === 'checked')
+          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
 
-        const originalQuantity = eventItem.item?.quantity || 0;
-        const remainingQuantity = originalQuantity - (checkedOutQuantity - checkedInQuantity);
+        const checkedInQuantity = itemCheckoutItems
+          .filter(ci => ci.status === 'checked_in')
+          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
 
-        // Check if any checkout item has status 'checked' or 'checked_in'
-        const isCheckedOut = eventItem.checkout_items?.some((ci: CheckoutItemWithDetails) => ci.status === 'checked') || false;
-        const isCheckedIn = eventItem.checkout_items?.some((ci: CheckoutItemWithDetails) => ci.status === 'checked_in') || false;
+        // Calculate remaining quantity
+        const remainingQuantity = (eventItem.item?.quantity || 0) - (checkedOutQuantity - checkedInQuantity);
+
+        // Determine if item is checked out
+        const is_checked_out = checkedOutQuantity > checkedInQuantity;
 
         return {
           ...eventItem,
-          quantity: originalQuantity,
-          remaining_quantity: remainingQuantity,
-          is_checked_out: isCheckedOut && !isCheckedIn,
-          last_checked_by: lastCheckout?.user?.name,
-          last_checked_at: lastCheckout?.checked_at
+          remainingQuantity,
+          is_checked_out,
+          checkedOutQuantity,
+          checkedInQuantity
         };
-      }) || [];
+      });
 
-      setItems(itemsData || [])
-      setEventItems(processedEventItems)
+      setItems(processedItems);
     } catch (error) {
-      console.error('Error fetching data:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load data')
-    } finally {
-      setIsLoading(false)
+      console.error('Error fetching event items:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch event items",
+        variant: "destructive",
+      });
     }
-  }
+  };
 
   const handleAddItem = async () => {
     if (!selectedEvent || !selectedItem || quantity <= 0) {
