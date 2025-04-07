@@ -64,73 +64,55 @@ export function CheckoutDialog({
     }));
   };
 
-  const handleSubmit = async () => {
+  const handleComplete = async () => {
     try {
-      setIsSubmitting(true);
-      setError(null);
+      setIsSubmitting(true)
 
-      // Get the session token
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Not authenticated');
+      if (!user?.id) {
+        throw new Error('User not authenticated')
       }
 
-      // Process each checked item
+      // Validate quantities
       for (const item of items) {
-        if (checkedItems[item.id]) {
-          const newQuantity = quantities[item.id];
-          const reason = reasons[item.id];
-
-          // For non-consumable items during check-in, validate quantities
-          const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(item.item.category);
-          const isCheckin = type === 'checkin';
-          
-          if (isNonConsumable && isCheckin && newQuantity !== item.original_quantity && !reason) {
-            throw new Error(`Please provide a reason for quantity mismatch for ${item.item.name}`);
-          }
-
-          // Update checkout item via API
-          const response = await fetch(`/api/checkout/${taskId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              itemId: item.id,
-              actualQuantity: newQuantity,
-              status: type === 'checkout' ? 'checked' : 'returned',
-              reason
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Failed to update checkout item');
-          }
+        if (item.actual_quantity <= 0) {
+          throw new Error(`Quantity must be greater than 0 for ${item.item?.name}`)
         }
       }
 
-      // Complete the checkout task via API
-      const completeResponse = await fetch(`/api/checkout/${taskId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      // Update items
+      for (const item of items) {
+        const { error } = await updateCheckoutItem(
+          item.id,
+          item.actual_quantity,
+          type === 'checkin' ? 'checked_in' : 'checked',
+          user.id
+        )
 
-      if (!completeResponse.ok) {
-        throw new Error('Failed to complete checkout task');
+        if (error) throw error
       }
 
-      onComplete();
-      onClose();
-    } catch (err) {
-      console.error('Error processing checkout:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred during checkout');
+      // Complete the task
+      const { error: completeError } = await completeCheckoutTask(taskId)
+      if (completeError) throw completeError
+
+      toast({
+        title: "Success",
+        description: `Items ${type === 'checkin' ? 'checked in' : 'checked out'} successfully`,
+      })
+
+      onComplete()
+      onClose()
+    } catch (error) {
+      console.error('Error completing checkout:', error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to complete checkout",
+        variant: "destructive",
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -192,7 +174,7 @@ export function CheckoutDialog({
 
         <DialogFooter>
           <Button
-            onClick={handleSubmit}
+            onClick={handleComplete}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
