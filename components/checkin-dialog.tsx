@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckoutItemWithDetails } from "@/types/checkout"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
+import { useUser } from "@/lib/useUser"
 
 interface CheckinDialogProps {
   isOpen: boolean
@@ -26,6 +27,7 @@ const REASON_CODES = [
 
 export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDialogProps) {
   const { toast } = useToast()
+  const { user } = useUser()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
   const [reasons, setReasons] = useState<Record<string, string>>({})
@@ -97,7 +99,9 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             status: 'checked_in',
             actual_quantity: returnQuantity,
             reason: !isConsumable && returnQuantity < item.actual_quantity ? 
-              `${reasonCodes[item.id]}: ${reasons[item.id]}` : null
+              `${reasonCodes[item.id]}: ${reasons[item.id]}` : null,
+            checked_by: user?.id,
+            checked_at: new Date().toISOString()
           })
           .eq('id', item.id)
 
@@ -112,7 +116,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             quantity_change: returnQuantity,
             reason: !isConsumable && returnQuantity < item.actual_quantity ? 
               `${reasonCodes[item.id]}: ${reasons[item.id]}` : null,
-            checkout_task_id: item.checkout_task_id
+            checkout_task_id: item.checkout_task_id,
+            user_id: user?.id
           }])
 
         if (auditError) throw auditError

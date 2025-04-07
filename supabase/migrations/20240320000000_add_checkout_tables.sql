@@ -1,7 +1,7 @@
 -- Create enum types
 CREATE TYPE checkout_task_status AS ENUM ('pending', 'in_progress', 'completed', 'cancelled');
 CREATE TYPE checkout_task_type AS ENUM ('checkout', 'checkin');
-CREATE TYPE checkout_item_status AS ENUM ('pending', 'checked', 'returned');
+CREATE TYPE checkout_item_status AS ENUM ('pending', 'checked', 'checked_in', 'cancelled');
 CREATE TYPE audit_action_type AS ENUM ('checkout', 'checkin', 'quantity_mismatch');
 
 -- Create checkout_tasks table
