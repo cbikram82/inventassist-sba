@@ -85,12 +85,20 @@ export default function EventItemsPage() {
     ? eventItems.filter(item => item.event_name === selectedEvent)
     : eventItems
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
   const fetchData = async () => {
     try {
+      setIsLoading(true);
+      setError(null);
+
+      // Fetch all items first
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('items')
+        .select('*')
+        .order('name');
+
+      if (itemsError) throw itemsError;
+
+      // Fetch event items with item details
       const { data: eventItems, error: eventItemsError } = await supabase
         .from('event_items')
         .select(`
@@ -142,16 +150,25 @@ export default function EventItemsPage() {
         };
       });
 
-      setItems(processedItems);
+      setItems(itemsData || []);
+      setEventItems(processedItems);
     } catch (error) {
-      console.error('Error fetching event items:', error);
+      console.error('Error fetching data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load data');
       toast({
         title: "Error",
-        description: "Failed to fetch event items",
+        description: error instanceof Error ? error.message : "Failed to fetch data",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Add useEffect to fetch data on component mount
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleAddItem = async () => {
     if (!selectedEvent || !selectedItem || quantity <= 0) {
@@ -337,7 +354,7 @@ export default function EventItemsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+      <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
