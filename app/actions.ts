@@ -258,7 +258,7 @@ export async function getCheckoutTask(taskId: string): Promise<CheckoutTaskWithI
 export async function updateCheckoutItem(
   itemId: string,
   actualQuantity: number,
-  status: 'checked' | 'returned',
+  status: 'checked' | 'checked_in',
   userId: string,
   reason?: string
 ) {
@@ -271,7 +271,9 @@ export async function updateCheckoutItem(
       .select(`
         *,
         item:items (
-          category
+          id,
+          category,
+          quantity
         )
       `)
       .eq('id', itemId)
@@ -289,9 +291,9 @@ export async function updateCheckoutItem(
 
     // For non-consumable items during check-in, require a reason if quantities don't match
     const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(checkoutItem.item.category);
-    const isCheckin = status === 'returned';
+    const isCheckin = status === 'checked_in';
 
-    if (isNonConsumable && isCheckin && !reason) {
+    if (isNonConsumable && isCheckin && actualQuantity < checkoutItem.actual_quantity && !reason) {
       throw new Error('Reason is required for non-consumable items with quantity mismatch');
     }
 
@@ -317,6 +319,35 @@ export async function updateCheckoutItem(
 
     if (!data) {
       throw new Error(`No data returned after updating checkout item: ${itemId}`);
+    }
+
+    // Update item quantity based on status
+    const quantityChange = status === 'checked_in' ? actualQuantity : -actualQuantity;
+    const { error: updateQuantityError } = await supabase
+      .from('items')
+      .update({ 
+        quantity: checkoutItem.item.quantity + quantityChange 
+      })
+      .eq('id', checkoutItem.item_id);
+
+    if (updateQuantityError) {
+      throw new Error(`Error updating item quantity: ${updateQuantityError.message}`);
+    }
+
+    // Create audit log
+    const { error: auditError } = await supabase
+      .from('audit_logs')
+      .insert([{
+        user_id: userId,
+        action: status === 'checked_in' ? 'checkin' : 'checkout',
+        item_id: checkoutItem.item_id,
+        checkout_task_id: checkoutItem.checkout_task_id,
+        quantity_change: quantityChange,
+        reason
+      }]);
+
+    if (auditError) {
+      throw new Error(`Error creating audit log: ${auditError.message}`);
     }
 
     console.log('Successfully updated checkout item:', data);

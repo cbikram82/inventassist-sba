@@ -75,6 +75,21 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const returnQuantity = returnQuantities[item.id] || 0
         const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables"
 
+        // Update checkout item status
+        const { error: statusError } = await supabase
+          .from('checkout_items')
+          .update({ 
+            status: 'checked_in',
+            actual_quantity: returnQuantity,
+            reason: !isConsumable && returnQuantity < item.actual_quantity ? 
+              `${reasonCodes[item.id]}: ${reasons[item.id]}` : null,
+            checked_by: user?.id,
+            checked_at: new Date().toISOString()
+          })
+          .eq('id', item.id)
+
+        if (statusError) throw statusError
+
         // Get current item quantity
         const { data: currentItem, error: fetchError } = await supabase
           .from('items')
@@ -91,21 +106,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           .eq('id', item.item_id)
 
         if (updateError) throw updateError
-
-        // Update checkout item status
-        const { error: statusError } = await supabase
-          .from('checkout_items')
-          .update({ 
-            status: 'checked_in',
-            actual_quantity: returnQuantity,
-            reason: !isConsumable && returnQuantity < item.actual_quantity ? 
-              `${reasonCodes[item.id]}: ${reasons[item.id]}` : null,
-            checked_by: user?.id,
-            checked_at: new Date().toISOString()
-          })
-          .eq('id', item.id)
-
-        if (statusError) throw statusError
 
         // Create audit log
         const { error: auditError } = await supabase
