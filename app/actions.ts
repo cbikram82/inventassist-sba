@@ -297,6 +297,31 @@ export async function updateCheckoutItem(
       throw new Error('Reason is required for non-consumable items with quantity mismatch');
     }
 
+    // Get current item quantity
+    const { data: currentItem, error: fetchError } = await supabase
+      .from('items')
+      .select('quantity')
+      .eq('id', checkoutItem.item_id)
+      .single();
+
+    if (fetchError) {
+      throw new Error(`Error fetching current item quantity: ${fetchError.message}`);
+    }
+
+    // Calculate new quantity based on status
+    const quantityChange = status === 'checked_in' ? actualQuantity : -actualQuantity;
+    const newQuantity = (currentItem?.quantity || 0) + quantityChange;
+
+    // Update item quantity
+    const { error: updateQuantityError } = await supabase
+      .from('items')
+      .update({ quantity: newQuantity })
+      .eq('id', checkoutItem.item_id);
+
+    if (updateQuantityError) {
+      throw new Error(`Error updating item quantity: ${updateQuantityError.message}`);
+    }
+
     // Update the checkout item
     const { data, error } = await supabase
       .from('checkout_items')
@@ -319,19 +344,6 @@ export async function updateCheckoutItem(
 
     if (!data) {
       throw new Error(`No data returned after updating checkout item: ${itemId}`);
-    }
-
-    // Update item quantity based on status
-    const quantityChange = status === 'checked_in' ? actualQuantity : -actualQuantity;
-    const { error: updateQuantityError } = await supabase
-      .from('items')
-      .update({ 
-        quantity: checkoutItem.item.quantity + quantityChange 
-      })
-      .eq('id', checkoutItem.item_id);
-
-    if (updateQuantityError) {
-      throw new Error(`Error updating item quantity: ${updateQuantityError.message}`);
     }
 
     // Create audit log
@@ -389,8 +401,23 @@ export async function completeCheckoutTask(taskId: string) {
 
     // Update each item's quantity and create audit logs
     for (const checkoutItem of checkoutItems) {
-      // Update item quantity
-      const newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
+      // Get current item quantity
+      const { data: currentItem, error: fetchError } = await supabase
+        .from('items')
+        .select('quantity')
+        .eq('id', checkoutItem.item_id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching current item quantity:', fetchError);
+        throw new Error(`Failed to fetch current item quantity: ${fetchError.message}`);
+      }
+
+      // Update item quantity based on status
+      const newQuantity = checkoutItem.status === 'checked_in' 
+        ? (currentItem?.quantity || 0) + checkoutItem.actual_quantity
+        : (currentItem?.quantity || 0) - checkoutItem.actual_quantity;
+
       const { error: updateItemError } = await supabase
         .from('items')
         .update({ quantity: newQuantity })
@@ -406,10 +433,12 @@ export async function completeCheckoutTask(taskId: string) {
         .from('audit_logs')
         .insert({
           user_id: checkoutItem.checked_by,
-          action: 'checkout',
+          action: checkoutItem.status === 'checked_in' ? 'checkin' : 'checkout',
           item_id: checkoutItem.item_id,
           checkout_task_id: taskId,
-          quantity_change: -checkoutItem.actual_quantity
+          quantity_change: checkoutItem.status === 'checked_in' 
+            ? checkoutItem.actual_quantity 
+            : -checkoutItem.actual_quantity
         });
 
       if (auditLogError) {
@@ -418,27 +447,24 @@ export async function completeCheckoutTask(taskId: string) {
       }
     }
 
-    // Update checkout task status
-    const { data, error } = await supabase
+    // Update task status to completed
+    const { error: taskError } = await supabase
       .from('checkout_tasks')
-      .update({
+      .update({ 
         status: 'completed',
         completed_at: new Date().toISOString()
       })
-      .eq('id', taskId)
-      .select()
-      .single();
+      .eq('id', taskId);
 
-    if (error) {
-      console.error('Error updating checkout task:', error);
-      throw new Error(`Failed to update checkout task: ${error.message}`);
+    if (taskError) {
+      console.error('Error updating task status:', taskError);
+      throw new Error(`Failed to update task status: ${taskError.message}`);
     }
 
-    console.log('Successfully completed checkout task:', data);
-    return data;
+    return { error: null };
   } catch (error) {
     console.error('Error in completeCheckoutTask:', error);
-    throw error;
+    return { error };
   }
 }
 
