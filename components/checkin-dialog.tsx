@@ -56,29 +56,55 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
   const handleCheckin = async () => {
     try {
+      setIsSubmitting(true);
+
       // Validate all items before proceeding
       for (const item of items) {
-        const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(item.item.category);
         const returnQuantity = returnQuantities[item.id] || 0;
-        const reason = reasons[item.id];
+        const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
+        const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '');
 
+        // Validate return quantity
+        if (returnQuantity <= 0) {
+          toast({
+            title: "Validation Error",
+            description: `Please enter a valid return quantity for ${item.item?.name}`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // For non-consumable items, validate exact quantity or require reason
         if (isNonConsumable) {
-          // For non-consumable items, quantity must match exactly unless there's a reason
-          if (returnQuantity !== item.actual_quantity && !reason) {
-            toast({
-              title: "Validation Error",
-              description: `For ${item.item.name}, you must return the exact quantity (${item.actual_quantity}) or provide a reason for the mismatch.`,
-              variant: "destructive",
-            });
-            return;
+          if (returnQuantity !== item.actual_quantity) {
+            if (!reasonCodes[item.id] || !reasons[item.id]) {
+              toast({
+                title: "Validation Error",
+                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide a reason for the mismatch.`,
+                variant: "destructive",
+              });
+              return;
+            }
           }
+        }
+
+        // For consumable items, validate max quantity
+        if (isConsumable && returnQuantity > item.actual_quantity) {
+          toast({
+            title: "Validation Error",
+            description: `Return quantity cannot exceed checked out quantity (${item.actual_quantity}) for ${item.item?.name}`,
+            variant: "destructive",
+          });
+          return;
         }
       }
 
       // Proceed with check-in for each item
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
-        const reason = reasons[item.id];
+        const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
+        const reason = !isConsumable && returnQuantity < item.actual_quantity ? 
+          `${reasonCodes[item.id]}: ${reasons[item.id]}` : null;
 
         // Get current item quantity
         const { data: currentItem, error: fetchError } = await supabase
@@ -110,7 +136,9 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           .update({
             status: 'checked_in',
             actual_quantity: returnQuantity,
-            reason: reason || null
+            reason: reason,
+            checked_by: user?.id,
+            checked_at: new Date().toISOString()
           })
           .eq('id', item.id);
 
@@ -127,7 +155,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             item_id: item.item_id,
             checkout_task_id: item.checkout_task_id,
             quantity_change: returnQuantity,
-            reason: reason || null
+            reason: reason
           }]);
 
         if (auditError) {
@@ -140,6 +168,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         description: "Items checked in successfully",
       });
       onComplete();
+      onClose();
     } catch (error) {
       console.error('Error during check-in:', error);
       toast({
@@ -147,6 +176,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         description: error instanceof Error ? error.message : "Failed to check in items",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
