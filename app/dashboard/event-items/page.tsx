@@ -100,10 +100,6 @@ export default function EventItemsPage() {
             name,
             category,
             quantity
-          ),
-          event:events (
-            id,
-            name
           )
         `)
         .order('created_at', { ascending: false });

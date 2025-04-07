@@ -1,6 +1,6 @@
 export type CheckoutTaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 export type CheckoutTaskType = 'checkout' | 'checkin';
-export type CheckoutItemStatus = 'pending' | 'checked' | 'returned';
+export type CheckoutItemStatus = 'pending' | 'checked' | 'checked_in' | 'cancelled';
 export type AuditActionType = 'checkout' | 'checkin' | 'quantity_mismatch';
 
 export interface CheckoutTask {
