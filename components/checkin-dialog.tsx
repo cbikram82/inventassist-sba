@@ -56,91 +56,99 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
   const handleCheckin = async () => {
     try {
-      setIsSubmitting(true)
-
-      // Validate quantities and reasons
+      // Validate all items before proceeding
       for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] || 0
-        const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables"
+        const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(item.item.category);
+        const returnQuantity = returnQuantities[item.id] || 0;
+        const reason = reasons[item.id];
 
-        if (!isConsumable && returnQuantity < item.actual_quantity) {
-          if (!reasonCodes[item.id] || !reasons[item.id]) {
-            throw new Error(`Please provide a reason code and description for ${item.item?.name}`)
+        if (isNonConsumable) {
+          // For non-consumable items, quantity must match exactly unless there's a reason
+          if (returnQuantity !== item.actual_quantity && !reason) {
+            toast({
+              title: "Validation Error",
+              description: `For ${item.item.name}, you must return the exact quantity (${item.actual_quantity}) or provide a reason for the mismatch.`,
+              variant: "destructive",
+            });
+            return;
           }
         }
       }
 
-      // Update items and create audit logs
+      // Proceed with check-in for each item
       for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] || 0
-        const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables"
-
-        // Update checkout item status
-        const { error: statusError } = await supabase
-          .from('checkout_items')
-          .update({ 
-            status: 'checked_in',
-            actual_quantity: returnQuantity,
-            reason: !isConsumable && returnQuantity < item.actual_quantity ? 
-              `${reasonCodes[item.id]}: ${reasons[item.id]}` : null,
-            checked_by: user?.id,
-            checked_at: new Date().toISOString()
-          })
-          .eq('id', item.id)
-
-        if (statusError) throw statusError
+        const returnQuantity = returnQuantities[item.id] || 0;
+        const reason = reasons[item.id];
 
         // Get current item quantity
         const { data: currentItem, error: fetchError } = await supabase
           .from('items')
           .select('quantity')
           .eq('id', item.item_id)
-          .single()
+          .single();
 
-        if (fetchError) throw fetchError
+        if (fetchError) {
+          throw new Error(`Error fetching current item quantity: ${fetchError.message}`);
+        }
 
-        // Update item quantity (add back the returned quantity)
+        // Calculate new quantity
+        const newQuantity = (currentItem?.quantity || 0) + returnQuantity;
+
+        // Update item quantity
         const { error: updateError } = await supabase
           .from('items')
-          .update({ quantity: (currentItem?.quantity || 0) + returnQuantity })
-          .eq('id', item.item_id)
+          .update({ quantity: newQuantity })
+          .eq('id', item.item_id);
 
-        if (updateError) throw updateError
+        if (updateError) {
+          throw new Error(`Error updating item quantity: ${updateError.message}`);
+        }
+
+        // Update checkout item status
+        const { error: checkoutError } = await supabase
+          .from('checkout_items')
+          .update({
+            status: 'checked_in',
+            actual_quantity: returnQuantity,
+            reason: reason || null
+          })
+          .eq('id', item.id);
+
+        if (checkoutError) {
+          throw new Error(`Error updating checkout item: ${checkoutError.message}`);
+        }
 
         // Create audit log
         const { error: auditError } = await supabase
           .from('audit_logs')
           .insert([{
-            item_id: item.item_id,
+            user_id: user?.id,
             action: 'checkin',
-            quantity_change: returnQuantity,
-            reason: !isConsumable && returnQuantity < item.actual_quantity ? 
-              `${reasonCodes[item.id]}: ${reasons[item.id]}` : null,
+            item_id: item.item_id,
             checkout_task_id: item.checkout_task_id,
-            user_id: user?.id
-          }])
+            quantity_change: returnQuantity,
+            reason: reason || null
+          }]);
 
-        if (auditError) throw auditError
+        if (auditError) {
+          throw new Error(`Error creating audit log: ${auditError.message}`);
+        }
       }
 
       toast({
         title: "Success",
         description: "Items checked in successfully",
-      })
-
-      onComplete()
-      onClose()
+      });
+      onComplete();
     } catch (error) {
-      console.error('Error checking in items:', error)
+      console.error('Error during check-in:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to check in items",
         variant: "destructive",
-      })
-    } finally {
-      setIsSubmitting(false)
+      });
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -185,24 +193,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
                 {requiresReason && (
                   <div className="space-y-2">
-                    <div>
-                      <Label>Reason Code</Label>
-                      <Select
-                        value={reasonCodes[item.id]}
-                        onValueChange={(value) => handleReasonCodeChange(item.id, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REASON_CODES.map(code => (
-                            <SelectItem key={code.id} value={code.id}>
-                              {code.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <div>
                       <Label>Reason Description</Label>
                       <Textarea
