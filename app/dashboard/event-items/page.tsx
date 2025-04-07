@@ -129,6 +129,10 @@ export default function EventItemsPage() {
           ?.filter((ci: CheckoutItemWithDetails) => ci.status === 'checked')
           .reduce((sum: number, ci: CheckoutItemWithDetails) => sum + ci.actual_quantity, 0) || 0;
 
+        const checkedInQuantity = eventItem.checkout_items
+          ?.filter((ci: CheckoutItemWithDetails) => ci.status === 'checked_in')
+          .reduce((sum: number, ci: CheckoutItemWithDetails) => sum + ci.actual_quantity, 0) || 0;
+
         const lastCheckout = eventItem.checkout_items
           ?.sort((a: CheckoutItemWithDetails, b: CheckoutItemWithDetails) => {
             const dateA = a.checked_at ? new Date(a.checked_at).getTime() : 0;
@@ -137,16 +141,17 @@ export default function EventItemsPage() {
           })[0];
 
         const originalQuantity = eventItem.item?.quantity || 0;
-        const remainingQuantity = originalQuantity - checkedOutQuantity;
+        const remainingQuantity = originalQuantity - (checkedOutQuantity - checkedInQuantity);
 
-        // Check if any checkout item has status 'checked'
+        // Check if any checkout item has status 'checked' or 'checked_in'
         const isCheckedOut = eventItem.checkout_items?.some((ci: CheckoutItemWithDetails) => ci.status === 'checked') || false;
+        const isCheckedIn = eventItem.checkout_items?.some((ci: CheckoutItemWithDetails) => ci.status === 'checked_in') || false;
 
         return {
           ...eventItem,
           quantity: originalQuantity,
           remaining_quantity: remainingQuantity,
-          is_checked_out: isCheckedOut,
+          is_checked_out: isCheckedOut && !isCheckedIn,
           last_checked_by: lastCheckout?.user?.name,
           last_checked_at: lastCheckout?.checked_at
         };

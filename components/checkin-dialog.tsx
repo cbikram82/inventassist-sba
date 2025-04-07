@@ -73,10 +73,10 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const returnQuantity = returnQuantities[item.id] || 0
         const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables"
 
-        // Update item quantity
+        // Update item quantity (add back the returned quantity)
         const { error: updateError } = await supabase
           .from('items')
-          .update({ quantity: item.item?.quantity + returnQuantity })
+          .update({ quantity: (item.item?.quantity || 0) + returnQuantity })
           .eq('id', item.item_id)
 
         if (updateError) throw updateError
@@ -148,13 +148,16 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     <p className="text-sm text-muted-foreground">
                       Checked out: {item.actual_quantity}
                     </p>
+                    <p className="text-sm text-muted-foreground">
+                      Category: {item.item?.category}
+                    </p>
                   </div>
                   <div className="w-32">
                     <Label>Return Quantity</Label>
                     <Input
                       type="number"
                       min="0"
-                      max={item.actual_quantity}
+                      max={isConsumable ? undefined : item.actual_quantity}
                       value={returnQuantities[item.id] || ""}
                       onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                     />

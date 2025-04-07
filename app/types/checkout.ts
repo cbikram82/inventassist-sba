@@ -1,3 +1,5 @@
+export type CheckoutItemStatus = 'pending' | 'checked' | 'checked_in' | 'cancelled'
+
 export interface CheckoutItem {
   id: string
   checkout_task_id: string
