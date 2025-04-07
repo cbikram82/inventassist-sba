@@ -73,10 +73,19 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const returnQuantity = returnQuantities[item.id] || 0
         const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables"
 
+        // Get current item quantity
+        const { data: currentItem, error: fetchError } = await supabase
+          .from('items')
+          .select('quantity')
+          .eq('id', item.item_id)
+          .single()
+
+        if (fetchError) throw fetchError
+
         // Update item quantity (add back the returned quantity)
         const { error: updateError } = await supabase
           .from('items')
-          .update({ quantity: (item.item?.quantity || 0) + returnQuantity })
+          .update({ quantity: (currentItem?.quantity || 0) + returnQuantity })
           .eq('id', item.item_id)
 
         if (updateError) throw updateError
@@ -151,6 +160,11 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     <p className="text-sm text-muted-foreground">
                       Category: {item.item?.category}
                     </p>
+                    {!isConsumable && (
+                      <p className="text-sm text-yellow-600">
+                        Note: You must return the exact quantity checked out unless items are damaged or lost
+                      </p>
+                    )}
                   </div>
                   <div className="w-32">
                     <Label>Return Quantity</Label>

@@ -517,9 +517,13 @@ export default function EventItemsPage() {
                           <TableCell>
                             <span className={cn(
                               "px-2 py-1 rounded-full text-xs",
-                              item.is_checked_out ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                              item.is_checked_out ? "bg-green-100 text-green-800" : 
+                              item.checkout_items?.some(ci => ci.status === 'checked_in') ? "bg-blue-100 text-blue-800" : 
+                              "bg-gray-100 text-gray-800"
                             )}>
-                              {item.is_checked_out ? "Checked Out" : "Available"}
+                              {item.is_checked_out ? "Checked Out" : 
+                               item.checkout_items?.some(ci => ci.status === 'checked_in') ? "Checked In" : 
+                               "Available"}
                             </span>
                           </TableCell>
                           <TableCell>{item.last_checked_by || "-"}</TableCell>
