@@ -189,9 +189,10 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         </DialogHeader>
         <div className="space-y-4">
           {items.map((item) => {
-            const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables"
-            const returnQuantity = returnQuantities[item.id] || 0
-            const requiresReason = !isConsumable && returnQuantity < item.actual_quantity
+            const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
+            const isNonConsumable = !isConsumable;
+            const returnQuantity = returnQuantities[item.id] || 0;
+            const requiresReason = isNonConsumable && returnQuantity < item.actual_quantity;
 
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
@@ -204,7 +205,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     <p className="text-sm text-muted-foreground">
                       Category: {item.item?.category}
                     </p>
-                    {!isConsumable && (
+                    {isNonConsumable && (
                       <p className="text-sm text-yellow-600">
                         Note: You must return the exact quantity checked out unless items are damaged or lost
                       </p>
@@ -253,7 +254,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                   </div>
                 )}
               </div>
-            )
+            );
           })}
 
           <div className="flex justify-end gap-2">

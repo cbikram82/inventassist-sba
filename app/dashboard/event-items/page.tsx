@@ -110,81 +110,79 @@ export default function EventItemsPage() {
       // Fetch all items first
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
-        .select('*')
-        .order('name');
+        .select('*');
 
       if (itemsError) throw itemsError;
 
       // Fetch event items with all necessary details
-      const { data: eventItems, error: eventItemsError } = await supabase
+      const { data: eventItemsData, error: eventItemsError } = await supabase
         .from('event_items')
         .select(`
           *,
           item:items (
             id,
             name,
+            description,
             category,
             quantity
           ),
           checkout_items (
             id,
-            status,
             actual_quantity,
+            status,
             checked_by,
             checked_at,
-            reason,
             user:users!checkout_items_checked_by_fkey (
+              id,
               name
             )
           )
         `)
-        .order('created_at', { ascending: false });
+        .eq('event_id', eventId);
 
       if (eventItemsError) throw eventItemsError;
 
-      // Process each event item
-      const processedItems = eventItems.map(eventItem => {
+      // Process the event items
+      const processedEventItems = eventItemsData.map(eventItem => {
         const checkoutItems = eventItem.checkout_items || [];
         
         // Calculate checked out and checked in quantities
         const checkedOutQuantity = checkoutItems
-          .filter((ci: CheckoutItem) => ci.status === 'checked')
-          .reduce((sum: number, ci: CheckoutItem) => sum + (ci.actual_quantity || 0), 0);
+          .filter(ci => ci.status === 'checked')
+          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
 
         const checkedInQuantity = checkoutItems
-          .filter((ci: CheckoutItem) => ci.status === 'checked_in')
-          .reduce((sum: number, ci: CheckoutItem) => sum + (ci.actual_quantity || 0), 0);
+          .filter(ci => ci.status === 'checked_in')
+          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
 
-        // Calculate remaining quantity
-        const remainingQuantity = (eventItem.item?.quantity || 0) - (checkedOutQuantity - checkedInQuantity);
+        // Calculate remaining quantity based on original quantity and checkouts/checkins
+        const remainingQuantity = eventItem.quantity - (checkedOutQuantity - checkedInQuantity);
 
-        // Get last checkout/checkin details
+        // Get last checkout/check-in details
         const lastCheckout = checkoutItems
-          .sort((a: CheckoutItem, b: CheckoutItem) => 
-            new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
-          )[0];
+          .filter(ci => ci.status === 'checked')
+          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+
+        const lastCheckin = checkoutItems
+          .filter(ci => ci.status === 'checked_in')
+          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
 
         return {
           ...eventItem,
           remainingQuantity,
-          is_checked_out: checkedOutQuantity > checkedInQuantity,
           checkedOutQuantity,
           checkedInQuantity,
-          last_checked_by: lastCheckout?.user?.name,
-          last_checked_at: lastCheckout?.checked_at
-        } as ProcessedEventItem;
+          lastCheckout,
+          lastCheckin,
+          is_checked_out: checkedOutQuantity > checkedInQuantity
+        };
       });
 
       setItems(itemsData || []);
-      setEventItems(processedItems);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load data');
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch data",
-        variant: "destructive",
-      });
+      setEventItems(processedEventItems);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
     } finally {
       setIsLoading(false);
     }
