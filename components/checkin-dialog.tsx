@@ -30,12 +30,26 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const { toast } = useToast()
   const { user } = useUser()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>(() => {
+    const initialQuantities: Record<string, number> = {};
+    items.forEach(item => {
+      initialQuantities[item.id] = item.actual_quantity;
+    });
+    return initialQuantities;
+  });
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
 
   useEffect(() => {
+    const initialQuantities: Record<string, number> = {};
+    items.forEach(item => {
+      initialQuantities[item.id] = item.actual_quantity;
+    });
+    setReturnQuantities(initialQuantities);
+    setReasons({});
+    setReasonCodes({});
+
     const fetchCategories = async () => {
       const { data, error } = await supabase
         .from('categories')
@@ -59,12 +73,13 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     if (isOpen) {
       fetchCategories()
     }
-  }, [isOpen, toast])
+  }, [isOpen, items, toast])
 
   const handleQuantityChange = (itemId: string, value: string) => {
+    const newQuantity = parseInt(value);
     setReturnQuantities(prev => ({
       ...prev,
-      [itemId]: parseInt(value) || 0
+      [itemId]: isNaN(newQuantity) ? (prev[itemId] ?? 0) : newQuantity 
     }))
   }
 
@@ -190,15 +205,15 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         <div className="space-y-4">
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category);
-            const isConsumable = itemCategory ? itemCategory.is_consumable : false;
-            const returnQuantity = returnQuantities[item.id] || 0;
-            const requiresReason = !isConsumable && returnQuantity !== item.actual_quantity;
+            const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
+            const currentReturnQuantity = returnQuantities[item.id] ?? 0;
+            const requiresReason = !isConsumable && currentReturnQuantity !== item.actual_quantity;
 
             console.log('Rendering item:', item.item?.name);
             console.log('Category:', itemCategory);
             console.log('Is consumable:', isConsumable);
-            console.log('Return quantity:', returnQuantity);
-            console.log('Actual quantity:', item.actual_quantity);
+            console.log('Current Return quantity from state:', currentReturnQuantity);
+            console.log('Actual quantity checked out:', item.actual_quantity);
             console.log('Requires reason:', requiresReason);
 
             return (
@@ -224,7 +239,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                       type="number"
                       min="0"
                       max={item.actual_quantity}
-                      value={returnQuantities[item.id] || ""}
+                      value={returnQuantities[item.id] ?? ''}
                       onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                     />
                   </div>
