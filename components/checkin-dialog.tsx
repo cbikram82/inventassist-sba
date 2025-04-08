@@ -93,8 +93,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         console.log('Item:', item.item?.name, 'Category:', item.item?.category);
         console.log('Found category in DB:', itemCategory);
         
-        // If category is not found or is_consumable is false, treat as non-consumable
-        const isConsumable = itemCategory?.is_consumable === true;
+        // If category is not found in DB, treat as non-consumable
+        const isConsumable = itemCategory ? itemCategory.is_consumable : false;
         console.log('Is consumable:', isConsumable, 'for item:', item.item?.name);
 
         // Basic validation for all items
@@ -137,7 +137,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.is_consumable === true;
+        const isConsumable = itemCategory ? itemCategory.is_consumable : false;
         const reason = !isConsumable && returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : undefined;
 
@@ -190,7 +190,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         <div className="space-y-4">
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category);
-            const isConsumable = itemCategory?.is_consumable === true;
+            const isConsumable = itemCategory ? itemCategory.is_consumable : false;
             const returnQuantity = returnQuantities[item.id] || 0;
             const requiresReason = !isConsumable && returnQuantity !== item.actual_quantity;
 
