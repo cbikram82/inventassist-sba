@@ -84,16 +84,14 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         }
 
         // Non-consumable specific validation
-        if (isNonConsumable) {
-          if (returnQuantity !== item.actual_quantity) {
-            if (!reasonCodes[item.id] || !reasons[item.id]) {
-              toast({
-                title: "Validation Error",
-                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
-                variant: "destructive",
-              });
-              return;
-            }
+        if (isNonConsumable && returnQuantity < item.actual_quantity) {
+          if (!reasonCodes[item.id] || !reasons[item.id]) {
+            toast({
+              title: "Validation Error",
+              description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+              variant: "destructive",
+            });
+            return;
           }
         }
       }

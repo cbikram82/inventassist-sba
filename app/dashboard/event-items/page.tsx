@@ -342,11 +342,20 @@ export default function EventItemsPage() {
     }
   };
 
-  const handleCheckoutComplete = () => {
-    // Refresh the event items list
-    fetchData();
-    setCurrentCheckoutTask(null);
-    setIsCheckoutDialogOpen(false);
+  const handleCheckoutComplete = async () => {
+    try {
+      // Refresh the event items list
+      await fetchData();
+      setCurrentCheckoutTask(null);
+      setIsCheckoutDialogOpen(false);
+    } catch (error) {
+      console.error('Error completing checkout:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to complete checkout",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCheckin = async () => {
@@ -391,11 +400,20 @@ export default function EventItemsPage() {
     }
   }
 
-  const handleCheckinComplete = () => {
-    // Refresh the event items list
-    fetchData();
-    setCurrentCheckinItems([]);
-    setIsCheckinDialogOpen(false);
+  const handleCheckinComplete = async () => {
+    try {
+      // Refresh the event items list
+      await fetchData();
+      setCurrentCheckinItems([]);
+      setIsCheckinDialogOpen(false);
+    } catch (error) {
+      console.error('Error completing checkin:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to complete checkin",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
