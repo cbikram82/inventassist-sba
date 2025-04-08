@@ -327,7 +327,7 @@ export async function updateCheckoutItem(
       .from('checkout_items')
       .update({
         actual_quantity: actualQuantity,
-        status: isCheckin ? 'checked_in' : status,
+        status: status,
         checked_by: userId,
         checked_at: new Date().toISOString(),
         reason
@@ -351,7 +351,7 @@ export async function updateCheckoutItem(
       .from('audit_logs')
       .insert([{
         user_id: userId,
-        action: isCheckin ? 'checkin' : 'checkout',
+        action: status === 'checked_in' ? 'checkin' : 'checkout',
         item_id: checkoutItem.item_id,
         checkout_task_id: checkoutItem.checkout_task_id,
         quantity_change: quantityChange,

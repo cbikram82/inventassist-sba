@@ -84,16 +84,14 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         }
 
         // Non-consumable specific validation
-        if (isNonConsumable) {
-          if (returnQuantity !== item.actual_quantity) {
-            if (!reasonCodes[item.id] || !reasons[item.id]) {
-              toast({
-                title: "Validation Error",
-                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
-                variant: "destructive",
-              });
-              return;
-            }
+        if (isNonConsumable && returnQuantity !== item.actual_quantity) {
+          if (!reasonCodes[item.id] || !reasons[item.id]) {
+            toast({
+              title: "Validation Error",
+              description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+              variant: "destructive",
+            });
+            return;
           }
         }
       }
@@ -105,6 +103,22 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const isNonConsumable = !isConsumable;
         const reason = isNonConsumable && returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : null;
+
+        // Update checkout item status first
+        const { error: checkoutError } = await supabase
+          .from('checkout_items')
+          .update({
+            status: 'checked_in',
+            actual_quantity: returnQuantity,
+            reason: reason,
+            checked_by: user?.id,
+            checked_at: new Date().toISOString()
+          })
+          .eq('id', item.id);
+
+        if (checkoutError) {
+          throw new Error(`Error updating checkout item: ${checkoutError.message}`);
+        }
 
         // Get current item quantity
         const { data: currentItem, error: fetchError } = await supabase
@@ -128,22 +142,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
         if (updateError) {
           throw new Error(`Error updating item quantity: ${updateError.message}`);
-        }
-
-        // Update checkout item status
-        const { error: checkoutError } = await supabase
-          .from('checkout_items')
-          .update({
-            status: 'checked_in',
-            actual_quantity: returnQuantity,
-            reason: reason,
-            checked_by: user?.id,
-            checked_at: new Date().toISOString()
-          })
-          .eq('id', item.id);
-
-        if (checkoutError) {
-          throw new Error(`Error updating checkout item: ${checkoutError.message}`);
         }
 
         // Create audit log
