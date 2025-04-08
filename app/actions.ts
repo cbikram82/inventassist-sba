@@ -372,7 +372,7 @@ export async function updateCheckoutItem(
 
 export async function completeCheckoutTask(taskId: string, userId: string) {
   try {
-    // Get all checkout items for this task
+    // Get all checkout items for this task with their item details
     const { data: checkoutItems, error: fetchError } = await supabase
       .from('checkout_items')
       .select(`
@@ -383,47 +383,54 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
           category
         )
       `)
-      .eq('checkout_task_id', taskId);
+      .eq('checkout_task_id', taskId)
+      .eq('status', 'checked');
 
-    if (fetchError) throw fetchError;
-    if (!checkoutItems?.length) {
+    if (fetchError) {
+      throw new Error(`Error fetching checkout items: ${fetchError.message}`);
+    }
+
+    if (!checkoutItems || checkoutItems.length === 0) {
       throw new Error('No checkout items found for this task');
     }
 
-    // Update each item's quantity and create audit logs
-    for (const item of checkoutItems) {
-      // Get current item quantity
-      const { data: currentItem, error: currentItemError } = await supabase
-        .from('items')
-        .select('quantity')
-        .eq('id', item.item_id)
-        .single();
+    // Process each checkout item
+    for (const checkoutItem of checkoutItems) {
+      if (!checkoutItem.item) {
+        throw new Error(`Item not found for checkout item ${checkoutItem.id}`);
+      }
 
-      if (currentItemError) throw currentItemError;
+      // Calculate new quantity (subtract only the actual quantity being checked out)
+      const newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
 
-      // Calculate new quantity (subtract only once)
-      const newQuantity = (currentItem?.quantity || 0) - item.actual_quantity;
+      if (newQuantity < 0) {
+        throw new Error(`Insufficient quantity for item ${checkoutItem.item.id}`);
+      }
 
       // Update item quantity
       const { error: updateError } = await supabase
         .from('items')
         .update({ quantity: newQuantity })
-        .eq('id', item.item_id);
+        .eq('id', checkoutItem.item_id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw new Error(`Error updating item quantity: ${updateError.message}`);
+      }
 
-      // Create audit log
+      // Create audit log for checkout
       const { error: auditError } = await supabase
         .from('audit_logs')
         .insert([{
           user_id: userId,
           action: 'checkout',
-          item_id: item.item_id,
+          item_id: checkoutItem.item_id,
           checkout_task_id: taskId,
-          quantity_change: -item.actual_quantity
+          quantity_change: -checkoutItem.actual_quantity
         }]);
 
-      if (auditError) throw auditError;
+      if (auditError) {
+        throw new Error(`Error creating audit log: ${auditError.message}`);
+      }
     }
 
     // Update checkout task status
@@ -435,7 +442,9 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
       })
       .eq('id', taskId);
 
-    if (taskError) throw taskError;
+    if (taskError) {
+      throw new Error(`Error updating checkout task: ${taskError.message}`);
+    }
 
     return { success: true };
   } catch (error) {

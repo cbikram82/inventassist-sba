@@ -62,7 +62,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
-        const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '');
+        // All other categories are considered non-consumable
+        const isNonConsumable = !isConsumable;
 
         // Basic validation
         if (returnQuantity <= 0) {
