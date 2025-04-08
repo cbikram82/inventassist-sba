@@ -404,44 +404,34 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
         throw new Error(`Item or event item not found for checkout item ${checkoutItem.id}`);
       }
 
-      // Calculate new quantity based on the status
-      let newQuantity = checkoutItem.item.quantity;
+      // For checkout: subtract the actual quantity from the item's quantity
       if (checkoutItem.status === 'checked') {
-        // For checkout: subtract the actual quantity
-        newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
-      } else if (checkoutItem.status === 'checked_in') {
-        // For check-in: add back the actual quantity
-        newQuantity = checkoutItem.item.quantity + checkoutItem.actual_quantity;
-      }
+        const newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
+        
+        // Update item quantity
+        const { error: updateError } = await supabase
+          .from('items')
+          .update({ quantity: newQuantity })
+          .eq('id', checkoutItem.item_id);
 
-      // Check if the event item has sufficient quantity
-      if (checkoutItem.status === 'checked' && checkoutItem.actual_quantity > checkoutItem.event_item.quantity) {
-        throw new Error(`Insufficient quantity in event for item ${checkoutItem.item.id}`);
-      }
+        if (updateError) {
+          throw new Error(`Error updating item quantity: ${updateError.message}`);
+        }
 
-      // Update item quantity
-      const { error: updateError } = await supabase
-        .from('items')
-        .update({ quantity: newQuantity })
-        .eq('id', checkoutItem.item_id);
+        // Create audit log for checkout
+        const { error: auditError } = await supabase
+          .from('audit_logs')
+          .insert([{
+            user_id: userId,
+            action: 'checkout',
+            item_id: checkoutItem.item_id,
+            checkout_task_id: taskId,
+            quantity_change: -checkoutItem.actual_quantity
+          }]);
 
-      if (updateError) {
-        throw new Error(`Error updating item quantity: ${updateError.message}`);
-      }
-
-      // Create audit log for the action
-      const { error: auditError } = await supabase
-        .from('audit_logs')
-        .insert([{
-          user_id: userId,
-          action: checkoutItem.status === 'checked' ? 'checkout' : 'checkin',
-          item_id: checkoutItem.item_id,
-          checkout_task_id: taskId,
-          quantity_change: checkoutItem.status === 'checked' ? -checkoutItem.actual_quantity : checkoutItem.actual_quantity
-        }]);
-
-      if (auditError) {
-        throw new Error(`Error creating audit log: ${auditError.message}`);
+        if (auditError) {
+          throw new Error(`Error creating audit log: ${auditError.message}`);
+        }
       }
     }
 

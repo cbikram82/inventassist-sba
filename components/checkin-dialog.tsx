@@ -84,14 +84,16 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         }
 
         // Non-consumable specific validation
-        if (isNonConsumable && returnQuantity < item.actual_quantity) {
-          if (!reasonCodes[item.id] || !reasons[item.id]) {
-            toast({
-              title: "Validation Error",
-              description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
-              variant: "destructive",
-            });
-            return;
+        if (isNonConsumable) {
+          if (returnQuantity < item.actual_quantity) {
+            if (!reasonCodes[item.id] || !reasons[item.id]) {
+              toast({
+                title: "Validation Error",
+                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+                variant: "destructive",
+              });
+              return;
+            }
           }
         }
       }
@@ -115,15 +117,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           throw new Error(`Error fetching current item quantity: ${fetchError.message}`);
         }
 
-        // Calculate new quantity based on item type
-        let newQuantity = currentItem?.quantity || 0;
-        if (isNonConsumable) {
-          // For non-consumable items, add back the full checked out quantity
-          newQuantity += item.actual_quantity;
-        } else {
-          // For consumable items, add back only the returned quantity
-          newQuantity += returnQuantity;
-        }
+        // Calculate new quantity (add back the returned quantity)
+        const newQuantity = (currentItem?.quantity || 0) + returnQuantity;
 
         // Update item quantity
         const { error: updateError } = await supabase
