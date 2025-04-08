@@ -395,39 +395,9 @@ export default function EventItemsPage() {
         return
       }
 
-      // Create a new checkout task for check-in
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          eventName: selectedEvent,
-          type: 'checkin',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create check-in task');
-      }
-
-      const taskWithItems = await response.json();
-
-      if (taskWithItems && taskWithItems.checkout_items) {
-        setCurrentCheckoutTask({
-          id: taskWithItems.id,
-          items: taskWithItems.checkout_items,
-          type: 'checkin'
-        });
-
-        setIsCheckoutDialogOpen(true);
-      }
+      // Set the items for check-in
+      setCurrentCheckinItems(checkoutItems);
+      setIsCheckinDialogOpen(true);
     } catch (error) {
       console.error('Error preparing checkin:', error)
       toast({
