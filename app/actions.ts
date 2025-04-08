@@ -322,12 +322,12 @@ export async function updateCheckoutItem(
       throw new Error(`Error updating item quantity: ${updateQuantityError.message}`);
     }
 
-    // Update the checkout item
+    // Update the checkout item with explicit status
     const { data, error } = await supabase
       .from('checkout_items')
       .update({
         actual_quantity: actualQuantity,
-        status,
+        status: isCheckin ? 'checked_in' : status,
         checked_by: userId,
         checked_at: new Date().toISOString(),
         reason
@@ -351,7 +351,7 @@ export async function updateCheckoutItem(
       .from('audit_logs')
       .insert([{
         user_id: userId,
-        action: status === 'checked_in' ? 'checkin' : 'checkout',
+        action: isCheckin ? 'checkin' : 'checkout',
         item_id: checkoutItem.item_id,
         checkout_task_id: checkoutItem.checkout_task_id,
         quantity_change: quantityChange,
@@ -372,23 +372,12 @@ export async function updateCheckoutItem(
 
 export async function completeCheckoutTask(taskId: string, userId: string) {
   try {
-    // Get all checkout items for this task with their item and event item details
+    // Get all checkout items for this task to verify they are all checked
     const { data: checkoutItems, error: fetchError } = await supabase
       .from('checkout_items')
-      .select(`
-        *,
-        item:items (
-          id,
-          quantity,
-          category
-        ),
-        event_item:event_items (
-          id,
-          quantity
-        )
-      `)
+      .select('*')
       .eq('checkout_task_id', taskId)
-      .in('status', ['checked', 'checked_in']); // Include both checked and checked_in items
+      .in('status', ['checked', 'checked_in']);
 
     if (fetchError) {
       throw new Error(`Error fetching checkout items: ${fetchError.message}`);
@@ -398,41 +387,10 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
       throw new Error('No checkout items found for this task');
     }
 
-    // Process each checkout item
-    for (const checkoutItem of checkoutItems) {
-      if (!checkoutItem.item || !checkoutItem.event_item) {
-        throw new Error(`Item or event item not found for checkout item ${checkoutItem.id}`);
-      }
-
-      // For checkout: subtract the actual quantity from the item's quantity
-      if (checkoutItem.status === 'checked') {
-        const newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
-        
-        // Update item quantity
-        const { error: updateError } = await supabase
-          .from('items')
-          .update({ quantity: newQuantity })
-          .eq('id', checkoutItem.item_id);
-
-        if (updateError) {
-          throw new Error(`Error updating item quantity: ${updateError.message}`);
-        }
-
-        // Create audit log for checkout
-        const { error: auditError } = await supabase
-          .from('audit_logs')
-          .insert([{
-            user_id: userId,
-            action: 'checkout',
-            item_id: checkoutItem.item_id,
-            checkout_task_id: taskId,
-            quantity_change: -checkoutItem.actual_quantity
-          }]);
-
-        if (auditError) {
-          throw new Error(`Error creating audit log: ${auditError.message}`);
-        }
-      }
+    // Verify all items are checked
+    const uncheckedItems = checkoutItems.filter(item => item.status !== 'checked' && item.status !== 'checked_in');
+    if (uncheckedItems.length > 0) {
+      throw new Error('Some items are not checked out or checked in');
     }
 
     // Update the task status to completed
