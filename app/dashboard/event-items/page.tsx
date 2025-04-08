@@ -138,7 +138,7 @@ export default function EventItemsPage() {
             )
           )
         `)
-        .eq('event_id', eventId);
+        .eq('event_name', selectedEvent);
 
       if (eventItemsError) throw eventItemsError;
 
