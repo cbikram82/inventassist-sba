@@ -89,7 +89,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.name === "Consumables" || itemCategory?.name === "Puja Consumables";
+        const isConsumable = itemCategory?.is_consumable || false;
 
         // Basic validation for all items
         if (returnQuantity <= 0) {
@@ -130,7 +130,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.name === "Consumables" || itemCategory?.name === "Puja Consumables";
+        const isConsumable = itemCategory?.is_consumable || false;
         const reason = !isConsumable && returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : undefined;
 
@@ -176,7 +176,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         <div className="space-y-4">
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category);
-            const isConsumable = itemCategory?.name === "Consumables" || itemCategory?.name === "Puja Consumables";
+            const isConsumable = itemCategory?.is_consumable || false;
             const returnQuantity = returnQuantities[item.id] || 0;
             const requiresReason = !isConsumable && returnQuantity !== item.actual_quantity;
 
