@@ -108,19 +108,22 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         console.log('Item:', item.item?.name, 'Category:', item.item?.category);
         console.log('Found category in DB:', itemCategory);
         
-        // If category is not found in DB, treat as non-consumable
-        const isConsumable = itemCategory ? itemCategory.is_consumable : false;
-        console.log('Is consumable:', isConsumable, 'for item:', item.item?.name);
+        // Make isConsumable check consistent with rendering logic
+        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
+        console.log('Is consumable (Validation Check):', isConsumable, 'for item:', item.item?.name);
 
         // Basic validation for all items
-        if (returnQuantity <= 0) {
+        if (returnQuantity < 0) { // Prevent negative numbers explicitly
           toast({
             title: "Validation Error",
-            description: `Please enter a valid return quantity for ${item.item?.name}`,
+            description: `Return quantity cannot be negative for ${item.item?.name}`,
             variant: "destructive",
           });
           return;
         }
+        
+        // Allow return quantity of 0 only if a reason is provided for non-consumables
+        // Existing check below handles returnQuantity > item.actual_quantity
 
         if (returnQuantity > item.actual_quantity) {
           toast({
@@ -136,10 +139,11 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           console.log('Validating non-consumable item:', item.item?.name);
           // For non-consumable items, require exact return or valid reason
           if (returnQuantity !== item.actual_quantity) {
-            if (!reasonCodes[item.id] || !reasons[item.id]) {
+            // Ensure reason code is selected and description is not empty
+            if (!reasonCodes[item.id] || !reasons[item.id]?.trim()) { 
               toast({
                 title: "Validation Error",
-                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+                description: `For non-consumable item ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a valid reason code and a description.`,
                 variant: "destructive",
               });
               return;
@@ -150,34 +154,37 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
       // Proceed with check-in for each item
       for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] || 0;
+        const returnQuantity = returnQuantities[item.id] ?? 0; // Use ?? 0 for safety
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory ? itemCategory.is_consumable : false;
-        const reason = !isConsumable && returnQuantity !== item.actual_quantity ? 
-          `${reasonCodes[item.id]}: ${reasons[item.id]}` : undefined;
+        // Use consistent check here too
+        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false; 
+        const requiresReasonCheck = !isConsumable && returnQuantity !== item.actual_quantity;
+        
+        // Format reason only if required and provided
+        const reason = requiresReasonCheck ? 
+          `${reasonCodes[item.id]}: ${reasons[item.id]?.trim()}` : undefined;
 
         console.log('Processing check-in for:', item.item?.name);
-        console.log('Category:', itemCategory);
-        console.log('Is consumable:', isConsumable);
+        console.log('Is consumable (Processing Check):', isConsumable);
         console.log('Return quantity:', returnQuantity);
-        console.log('Actual quantity:', item.actual_quantity);
-        console.log('Reason:', reason);
+        console.log('Requires Reason Check:', requiresReasonCheck);
+        console.log('Final Reason being sent:', reason);
 
         if (!user?.id) {
           throw new Error('User ID is required for check-in');
         }
 
-        // Use updateCheckoutItem function which has the correct quantity calculation logic
         const { error } = await updateCheckoutItem(
           item.id,
           returnQuantity,
           'checked_in',
           user.id,
-          reason
+          reason // Pass potentially undefined reason
         );
 
         if (error) {
-          throw new Error(`Error checking in item: ${error.message}`);
+          // Throw the specific error from updateCheckoutItem
+          throw error; 
         }
       }
 
@@ -188,7 +195,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       console.error('Error during check-in:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to check in items",
+        // Display the specific error message caught
+        description: error instanceof Error ? error.message : "Failed to check in items", 
         variant: "destructive",
       });
     } finally {
