@@ -52,6 +52,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         return
       }
 
+      console.log('Fetched categories:', data)
       setCategories(data || [])
     }
 
@@ -89,7 +90,11 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.is_consumable || false;
+        console.log('Item category:', itemCategory, 'for item:', item.item?.name);
+        
+        // Default to non-consumable if category not found
+        const isConsumable = itemCategory ? itemCategory.is_consumable : false;
+        console.log('Is consumable:', isConsumable, 'for item:', item.item?.name);
 
         // Basic validation for all items
         if (returnQuantity <= 0) {
@@ -112,6 +117,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
         // Category-specific validation
         if (!isConsumable) {
+          console.log('Validating non-consumable item:', item.item?.name);
           // For non-consumable items, require exact return or valid reason
           if (returnQuantity !== item.actual_quantity) {
             if (!reasonCodes[item.id] || !reasons[item.id]) {
@@ -130,7 +136,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.is_consumable || false;
+        const isConsumable = itemCategory ? itemCategory.is_consumable : false;
         const reason = !isConsumable && returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : undefined;
 
@@ -176,9 +182,11 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         <div className="space-y-4">
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category);
-            const isConsumable = itemCategory?.is_consumable || false;
+            const isConsumable = itemCategory ? itemCategory.is_consumable : false;
             const returnQuantity = returnQuantities[item.id] || 0;
             const requiresReason = !isConsumable && returnQuantity !== item.actual_quantity;
+
+            console.log('Rendering item:', item.item?.name, 'category:', itemCategory, 'isConsumable:', isConsumable, 'requiresReason:', requiresReason);
 
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
