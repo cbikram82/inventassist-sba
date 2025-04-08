@@ -541,7 +541,7 @@ export default function EventItemsPage() {
                         <TableRow key={item.id}>
                           <TableCell>{item.item_name}</TableCell>
                           <TableCell>{item.event_name}</TableCell>
-                          <TableCell>{item.remaining_quantity}</TableCell>
+                          <TableCell>{item.remainingQuantity}</TableCell>
                           <TableCell>
                             <span className={cn(
                               "px-2 py-1 rounded-full text-xs",

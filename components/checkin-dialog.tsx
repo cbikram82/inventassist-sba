@@ -116,7 +116,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           throw new Error(`Error fetching current item quantity: ${fetchError.message}`);
         }
 
-        // Calculate new quantity
+        // Calculate new quantity (add back only the returned quantity)
         const newQuantity = (currentItem?.quantity || 0) + returnQuantity;
 
         // Update item quantity
