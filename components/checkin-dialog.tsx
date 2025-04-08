@@ -11,6 +11,7 @@ import { CheckoutItemWithDetails } from "@/types/checkout"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { useUser } from "@/lib/useUser"
+import { updateCheckoutItem } from "@/app/actions"
 
 interface CheckinDialogProps {
   isOpen: boolean
@@ -88,7 +89,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.is_consumable || false;
+        const isConsumable = itemCategory?.name === "Consumables" || itemCategory?.name === "Puja Consumables";
 
         // Basic validation for all items
         if (returnQuantity <= 0) {
@@ -122,16 +123,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
               return;
             }
           }
-        } else {
-          // For consumable items, allow partial returns without reason
-          if (returnQuantity < item.actual_quantity && (!reasonCodes[item.id] || !reasons[item.id])) {
-            toast({
-              title: "Validation Error",
-              description: `For ${item.item?.name}, please provide a reason for returning less than the checked out quantity.`,
-              variant: "destructive",
-            });
-            return;
-          }
         }
       }
 
@@ -139,64 +130,25 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory?.is_consumable || false;
-        const reason = returnQuantity !== item.actual_quantity ? 
-          `${reasonCodes[item.id]}: ${reasons[item.id]}` : null;
+        const isConsumable = itemCategory?.name === "Consumables" || itemCategory?.name === "Puja Consumables";
+        const reason = !isConsumable && returnQuantity !== item.actual_quantity ? 
+          `${reasonCodes[item.id]}: ${reasons[item.id]}` : undefined;
 
-        // Update checkout item status first
-        const { error: checkoutError } = await supabase
-          .from('checkout_items')
-          .update({
-            status: 'checked_in',
-            actual_quantity: returnQuantity,
-            reason: reason,
-            checked_by: user?.id,
-            checked_at: new Date().toISOString()
-          })
-          .eq('id', item.id);
-
-        if (checkoutError) {
-          throw new Error(`Error updating checkout item: ${checkoutError.message}`);
+        if (!user?.id) {
+          throw new Error('User ID is required for check-in');
         }
 
-        // Get current item quantity
-        const { data: currentItem, error: fetchError } = await supabase
-          .from('items')
-          .select('quantity')
-          .eq('id', item.item_id)
-          .single();
+        // Use updateCheckoutItem function which has the correct quantity calculation logic
+        const { error } = await updateCheckoutItem(
+          item.id,
+          returnQuantity,
+          'checked_in',
+          user.id,
+          reason
+        );
 
-        if (fetchError) {
-          throw new Error(`Error fetching current item quantity: ${fetchError.message}`);
-        }
-
-        // Calculate new quantity (add back the returned quantity)
-        const newQuantity = (currentItem?.quantity || 0) + returnQuantity;
-
-        // Update item quantity
-        const { error: updateError } = await supabase
-          .from('items')
-          .update({ quantity: newQuantity })
-          .eq('id', item.item_id);
-
-        if (updateError) {
-          throw new Error(`Error updating item quantity: ${updateError.message}`);
-        }
-
-        // Create audit log
-        const { error: auditError } = await supabase
-          .from('audit_logs')
-          .insert([{
-            user_id: user?.id,
-            action: 'checkin',
-            item_id: item.item_id,
-            checkout_task_id: item.checkout_task_id,
-            quantity_change: returnQuantity,
-            reason: reason
-          }]);
-
-        if (auditError) {
-          throw new Error(`Error creating audit log: ${auditError.message}`);
+        if (error) {
+          throw new Error(`Error checking in item: ${error.message}`);
         }
       }
 
@@ -224,9 +176,9 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         <div className="space-y-4">
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category);
-            const isConsumable = itemCategory?.is_consumable || false;
+            const isConsumable = itemCategory?.name === "Consumables" || itemCategory?.name === "Puja Consumables";
             const returnQuantity = returnQuantities[item.id] || 0;
-            const requiresReason = !isConsumable && returnQuantity < item.actual_quantity;
+            const requiresReason = !isConsumable && returnQuantity !== item.actual_quantity;
 
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
