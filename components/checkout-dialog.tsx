@@ -92,14 +92,10 @@ export function CheckoutDialog({
       }
 
       // Complete the task
-      const { error: completeError } = await completeCheckoutTask(taskId)
+      const { error: completeError } = await completeCheckoutTask(taskId, user.id)
       if (completeError) throw completeError
 
-      toast({
-        title: "Success",
-        description: `Items ${type === 'checkin' ? 'checked in' : 'checked out'} successfully`,
-      })
-
+      // Close dialog and refresh data
       onComplete()
       onClose()
     } catch (error) {
