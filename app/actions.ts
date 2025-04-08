@@ -293,7 +293,7 @@ export async function updateCheckoutItem(
     const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(checkoutItem.item.category);
     const isCheckin = status === 'checked_in';
 
-    if (isNonConsumable && isCheckin && actualQuantity < checkoutItem.actual_quantity && !reason) {
+    if (isNonConsumable && isCheckin && actualQuantity !== checkoutItem.actual_quantity && !reason) {
       throw new Error('Reason is required for non-consumable items with quantity mismatch');
     }
 
@@ -322,12 +322,12 @@ export async function updateCheckoutItem(
       throw new Error(`Error updating item quantity: ${updateQuantityError.message}`);
     }
 
-    // Update the checkout item
+    // Update the checkout item with explicit status
     const { data, error } = await supabase
       .from('checkout_items')
       .update({
         actual_quantity: actualQuantity,
-        status,
+        status: isCheckin ? 'checked_in' : status,
         checked_by: userId,
         checked_at: new Date().toISOString(),
         reason
@@ -351,7 +351,7 @@ export async function updateCheckoutItem(
       .from('audit_logs')
       .insert([{
         user_id: userId,
-        action: status === 'checked_in' ? 'checkin' : 'checkout',
+        action: isCheckin ? 'checkin' : 'checkout',
         item_id: checkoutItem.item_id,
         checkout_task_id: checkoutItem.checkout_task_id,
         quantity_change: quantityChange,

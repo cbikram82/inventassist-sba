@@ -85,7 +85,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
         // Non-consumable specific validation
         if (isNonConsumable) {
-          if (returnQuantity < item.actual_quantity) {
+          if (returnQuantity !== item.actual_quantity) {
             if (!reasonCodes[item.id] || !reasons[item.id]) {
               toast({
                 title: "Validation Error",
@@ -103,7 +103,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const returnQuantity = returnQuantities[item.id] || 0;
         const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
         const isNonConsumable = !isConsumable;
-        const reason = isNonConsumable && returnQuantity < item.actual_quantity ? 
+        const reason = isNonConsumable && returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : null;
 
         // Get current item quantity
