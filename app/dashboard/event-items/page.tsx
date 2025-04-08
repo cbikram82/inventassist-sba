@@ -187,7 +187,9 @@ export default function EventItemsPage() {
           checkedInQuantity,
           lastCheckout,
           lastCheckin,
-          is_checked_out: checkedOutQuantity > checkedInQuantity
+          is_checked_out: checkedOutQuantity > checkedInQuantity,
+          last_checked_by: lastCheckout?.user?.name || lastCheckin?.user?.name,
+          last_checked_at: lastCheckout?.checked_at || lastCheckin?.checked_at
         };
       });
 
