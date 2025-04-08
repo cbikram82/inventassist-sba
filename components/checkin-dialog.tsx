@@ -161,10 +161,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         }
       }
 
-      toast({
-        title: "Success",
-        description: "Items checked in successfully",
-      });
+      // Close dialog and refresh data
       onComplete();
       onClose();
     } catch (error) {

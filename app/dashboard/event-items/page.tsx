@@ -344,10 +344,17 @@ export default function EventItemsPage() {
 
   const handleCheckoutComplete = async () => {
     try {
-      // Refresh the event items list
-      await fetchData();
-      setCurrentCheckoutTask(null);
+      // Close dialog first
       setIsCheckoutDialogOpen(false);
+      setCurrentCheckoutTask(null);
+      
+      // Then refresh data
+      await fetchData();
+      
+      toast({
+        title: "Success",
+        description: "Checkout completed successfully",
+      });
     } catch (error) {
       console.error('Error completing checkout:', error);
       toast({
@@ -402,10 +409,17 @@ export default function EventItemsPage() {
 
   const handleCheckinComplete = async () => {
     try {
-      // Refresh the event items list
-      await fetchData();
-      setCurrentCheckinItems([]);
+      // Close dialog first
       setIsCheckinDialogOpen(false);
+      setCurrentCheckinItems([]);
+      
+      // Then refresh data
+      await fetchData();
+      
+      toast({
+        title: "Success",
+        description: "Check-in completed successfully",
+      });
     } catch (error) {
       console.error('Error completing checkin:', error);
       toast({
@@ -532,7 +546,10 @@ export default function EventItemsPage() {
         {currentCheckoutTask && (
           <CheckoutDialog
             isOpen={isCheckoutDialogOpen}
-            onClose={() => setIsCheckoutDialogOpen(false)}
+            onClose={() => {
+              setIsCheckoutDialogOpen(false);
+              setCurrentCheckoutTask(null);
+            }}
             taskId={currentCheckoutTask.id}
             items={currentCheckoutTask.items}
             type={currentCheckoutTask.type}
@@ -543,7 +560,10 @@ export default function EventItemsPage() {
         {currentCheckinItems.length > 0 && (
           <CheckinDialog
             isOpen={isCheckinDialogOpen}
-            onClose={() => setIsCheckinDialogOpen(false)}
+            onClose={() => {
+              setIsCheckinDialogOpen(false);
+              setCurrentCheckinItems([]);
+            }}
             items={currentCheckinItems}
             onComplete={handleCheckinComplete}
           />
