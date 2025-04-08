@@ -154,48 +154,68 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
       // Proceed with check-in for each item
       for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] ?? 0; // Use ?? 0 for safety
+        const returnQuantity = returnQuantities[item.id] ?? 0;
+        const originalQuantity = Number(item.actual_quantity);
+
+        // Re-evaluate consumable status *just before* processing this item
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
         const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
-        const originalQuantity = Number(item.actual_quantity); // Ensure numeric comparison
-        
-        // --- DETAILED LOGGING FOR SUBMISSION --- 
+
+        // Determine if a reason should be required based on current values
+        const reasonIsNeeded = !isConsumable && returnQuantity !== originalQuantity;
+
+        let reasonToSend: string | undefined = undefined;
+
+        // --- DETAILED LOGGING & VALIDATION FOR SUBMISSION --- 
         console.log(`[Submit Check - ${item.item?.name}]`);
-        console.log(`  Return Qty (State): ${returnQuantity} (Type: ${typeof returnQuantity})`);
-        console.log(`  Original Qty (Props): ${originalQuantity} (Type: ${typeof originalQuantity})`);
-        console.log(`  Category Found:`, itemCategory);
-        console.log(`  Is Consumable Flag: ${itemCategory?.is_consumable}, Determined isConsumable: ${isConsumable}`);
-        console.log(`  Condition (!isConsumable): ${!isConsumable}`);
-        console.log(`  Condition (returnQuantity !== originalQuantity): ${returnQuantity !== originalQuantity}`);
+        console.log(`  Return Qty: ${returnQuantity}, Original Qty: ${originalQuantity}`);
+        console.log(`  Is Consumable: ${isConsumable}, Reason Needed: ${reasonIsNeeded}`);
+        console.log(`  State - Code: ${reasonCodes[item.id]}, Desc: ${reasons[item.id]}`);
         // --- END LOGGING --- 
 
-        const requiresReasonCheck = !isConsumable && returnQuantity !== originalQuantity;
-        
-        console.log(`  => Requires Reason Check (Submission): ${requiresReasonCheck}`);
-        
-        // Format reason only if required and provided
-        const reason = requiresReasonCheck ? 
-          `${reasonCodes[item.id]}: ${reasons[item.id]?.trim()}` : undefined;
+        if (reasonIsNeeded) {
+           // If a reason is needed, check if we have one from the state
+           const currentReasonCode = reasonCodes[item.id];
+           const currentReasonDesc = reasons[item.id]?.trim();
 
-        console.log(`  Reason Code State: ${reasonCodes[item.id]}`);
-        console.log(`  Reason Desc State: ${reasons[item.id]}`);
-        console.log(`  => Final Reason being sent:`, reason);
+           if (!currentReasonCode || !currentReasonDesc) {
+               // If reason is needed but not provided in state, throw a client-side error immediately.
+               // This indicates the UI failed to show/capture the reason inputs.
+               console.error(`[Submit Check - ${item.item?.name}] Client Validation Error: Reason required but not found in state. Code: ${currentReasonCode}, Desc: ${currentReasonDesc}`);
+               toast({
+                 title: "Input Error",
+                 description: `Reason required for ${item.item?.name} but not provided. Please fill in the reason details.`,
+                 variant: "destructive",
+               });
+               // We need to stop the execution here, not just throw an error that gets caught below.
+               // Returning false or some indicator could work if the loop continues, but stopping is cleaner.
+               // Throwing here will be caught by the outer try-catch.
+               throw new Error(`Reason required for ${item.item?.name} but not provided.`); 
+           }
+           // Format the reason if it's needed and provided
+           reasonToSend = `${currentReasonCode}: ${currentReasonDesc}`;
+        }
+        
+        console.log(`  => Reason to Send:`, reasonToSend);
+
 
         if (!user?.id) {
           throw new Error('User ID is required for check-in');
         }
 
+        // Call the backend action
         const { error } = await updateCheckoutItem(
           item.id,
           returnQuantity,
           'checked_in',
           user.id,
-          reason // Pass potentially undefined reason
+          reasonToSend // Pass the explicitly checked/formatted reason
         );
 
         if (error) {
           // Throw the specific error from updateCheckoutItem
-          throw error; 
+           console.error(`Backend Error for ${item.item?.name}:`, error);
+          throw error;
         }
       }
 
@@ -203,11 +223,11 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       onComplete();
       onClose();
     } catch (error) {
-      console.error('Error during check-in:', error);
+      console.error('Error during check-in process:', error); // More specific context
+      // Ensure the toast displays the specific error thrown
       toast({
-        title: "Error",
-        // Display the specific error message caught
-        description: error instanceof Error ? error.message : "Failed to check in items", 
+        title: "Check-in Error", // More specific title
+        description: error instanceof Error ? error.message : "Failed to check in items",
         variant: "destructive",
       });
     } finally {
