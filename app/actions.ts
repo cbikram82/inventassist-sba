@@ -322,12 +322,12 @@ export async function updateCheckoutItem(
       throw new Error(`Error updating item quantity: ${updateQuantityError.message}`);
     }
 
-    // Update the checkout item with explicit status
+    // Update the checkout item
     const { data, error } = await supabase
       .from('checkout_items')
       .update({
         actual_quantity: actualQuantity,
-        status: 'checked_in', // Always set to checked_in for check-in operations
+        status,
         checked_by: userId,
         checked_at: new Date().toISOString(),
         reason
@@ -351,7 +351,7 @@ export async function updateCheckoutItem(
       .from('audit_logs')
       .insert([{
         user_id: userId,
-        action: 'checkin',
+        action: status === 'checked_in' ? 'checkin' : 'checkout',
         item_id: checkoutItem.item_id,
         checkout_task_id: checkoutItem.checkout_task_id,
         quantity_change: quantityChange,
