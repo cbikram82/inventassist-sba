@@ -124,110 +124,86 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     try {
       setIsSubmitting(true)
 
+      // --- Combined Validation and Submission Loop ---
       for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] || 0
-        const itemCategory = categories.find(cat => cat.name === item.item?.category)
-        console.log('Item:', item.item?.name, 'Category:', item.item?.category)
-        console.log('Found category in DB:', itemCategory)
-        
-        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-        console.log('Is consumable (Validation Check):', isConsumable, 'for item:', item.item?.name)
+        const returnQuantity = returnQuantities[item.id] ?? 0;
+        const originalQuantity = Number(item.actual_quantity);
+        const itemCategory = categories.find(cat => cat.name === item.item?.category);
+        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
 
+        // 1. Basic quantity validation
         if (returnQuantity < 0) {
-          toast({
-            title: "Validation Error",
-            description: `Return quantity cannot be negative for ${item.item?.name}`,
-            variant: "destructive",
-          })
-          return
+          throw new Error(`Return quantity cannot be negative for ${item.item?.name}`);
         }
+        if (returnQuantity > originalQuantity) {
+          throw new Error(`Return quantity cannot exceed checked out quantity (${originalQuantity}) for ${item.item?.name}`);
+        }
+
+        // 2. Determine if reason is needed based on current values
+        const reasonIsNeeded = !isConsumable && returnQuantity !== originalQuantity;
+        let reasonToSend: string | undefined = undefined;
         
-        if (returnQuantity > item.actual_quantity) {
-          toast({
-            title: "Validation Error",
-            description: `Return quantity cannot exceed checked out quantity (${item.actual_quantity}) for ${item.item?.name}`,
-            variant: "destructive",
-          })
-          return
-        }
-
-        if (!isConsumable) {
-          console.log('Validating non-consumable item:', item.item?.name)
-          if (returnQuantity !== item.actual_quantity) {
-            if (!reasonCodes[item.id] || !reasons[item.id]?.trim()) {
-              toast({
-                title: "Validation Error",
-                description: `For non-consumable item ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a valid reason code and a description.`,
-                variant: "destructive",
-              })
-              return
-            }
-          }
-        }
-      }
-
-      for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] ?? 0
-        const originalQuantity = Number(item.actual_quantity)
-        const itemCategory = categories.find(cat => cat.name === item.item?.category)
-        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-        const reasonIsNeeded = !isConsumable && returnQuantity !== originalQuantity
-        let reasonToSend: string | undefined = undefined
-
-        console.log(`[Submit Check - ${item.item?.name}]`)
-        console.log(`  Return Qty: ${returnQuantity}, Original Qty: ${originalQuantity}`)
-        console.log(`  Is Consumable: ${isConsumable}, Reason Needed: ${reasonIsNeeded}`)
-        console.log(`  State - Code: ${reasonCodes[item.id]}, Desc: ${reasons[item.id]}`)
-
+        // 3. Check if reason is needed and if UI *should* have shown the fields
         if (reasonIsNeeded) {
-           const currentReasonCode = reasonCodes[item.id]
-           const currentReasonDesc = reasons[item.id]?.trim()
+          // Check the state variable that controls UI visibility
+          const shouldUIVisible = reasonVisibility[item.id] === true;
+          const currentReasonCode = reasonCodes[item.id];
+          const currentReasonDesc = reasons[item.id]?.trim();
 
-           if (!currentReasonCode || !currentReasonDesc) {
-               console.error(`[Submit Check - ${item.item?.name}] Client Validation Error: Reason required but not found in state. Code: ${currentReasonCode}, Desc: ${currentReasonDesc}`)
-               toast({
-                 title: "Input Error",
-                 description: `Reason required for ${item.item?.name} but not provided. Please fill in the reason details.`,
-                 variant: "destructive",
-               })
-               throw new Error(`Reason required for ${item.item?.name} but not provided.`) 
+          console.log(`[Submit Check - ${item.item?.name}] Reason Needed: ${reasonIsNeeded}, UI Should Be Visible State: ${shouldUIVisible}, Code Provided: ${!!currentReasonCode}, Desc Provided: ${!!currentReasonDesc}`);
+
+          if (!shouldUIVisible) {
+             // STATE INCONSISTENCY: Logic says reason needed, but UI state says fields were hidden.
+             console.error(`[Submit Check - ${item.item?.name}] Internal State Error: Reason required but reasonVisibility state was false. Qty: ${returnQuantity}/${originalQuantity}, isConsumable: ${isConsumable}`);
+             throw new Error(`Internal state error for ${item.item?.name}. Please refresh and try again.`);
+          }
+          
+          // If UI should have been visible, now check if values were actually entered
+          if (!currentReasonCode || !currentReasonDesc) {
+               // UI was supposed to be visible, but user didn't fill it out.
+               console.error(`[Submit Check - ${item.item?.name}] Client Input Error: Reason required and UI visible, but input missing.`);
+               throw new Error(`Reason required for ${item.item?.name} but not provided. Please fill in the reason details.`);
            }
-           reasonToSend = `${currentReasonCode}: ${currentReasonDesc}`
+           
+           // If all checks pass, format the reason
+           reasonToSend = `${currentReasonCode}: ${currentReasonDesc}`;
         }
         
-        console.log(`  => Reason to Send:`, reasonToSend)
+        console.log(`  => Reason to Send:`, reasonToSend);
 
         if (!user?.id) {
-          throw new Error('User ID is required for check-in')
+          throw new Error('User ID is required for check-in');
         }
 
+        // 4. Call the backend action
         const { error } = await updateCheckoutItem(
           item.id,
           returnQuantity,
           'checked_in',
           user.id,
           reasonToSend
-        )
+        );
 
         if (error) {
-          console.error(`Backend Error for ${item.item?.name}:`, error)
-          throw error
+          console.error(`Backend Error for ${item.item?.name}:`, error);
+          throw error; // Let outer catch handle toast
         }
       }
 
-      onComplete()
-      onClose()
-    } catch (error) {
-      console.error('Error during check-in process:', error)
+      // If loop completes without error
+      onComplete();
+      onClose();
+    } catch (error) { 
+      console.error('Error during check-in process:', error);
       toast({
         title: "Check-in Error",
         description: error instanceof Error ? error.message : "Failed to check in items",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
