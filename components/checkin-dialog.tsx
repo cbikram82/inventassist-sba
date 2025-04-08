@@ -156,19 +156,30 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] ?? 0; // Use ?? 0 for safety
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        // Use consistent check here too
-        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false; 
-        const requiresReasonCheck = !isConsumable && returnQuantity !== item.actual_quantity;
+        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
+        const originalQuantity = Number(item.actual_quantity); // Ensure numeric comparison
+        
+        // --- DETAILED LOGGING FOR SUBMISSION --- 
+        console.log(`[Submit Check - ${item.item?.name}]`);
+        console.log(`  Return Qty (State): ${returnQuantity} (Type: ${typeof returnQuantity})`);
+        console.log(`  Original Qty (Props): ${originalQuantity} (Type: ${typeof originalQuantity})`);
+        console.log(`  Category Found:`, itemCategory);
+        console.log(`  Is Consumable Flag: ${itemCategory?.is_consumable}, Determined isConsumable: ${isConsumable}`);
+        console.log(`  Condition (!isConsumable): ${!isConsumable}`);
+        console.log(`  Condition (returnQuantity !== originalQuantity): ${returnQuantity !== originalQuantity}`);
+        // --- END LOGGING --- 
+
+        const requiresReasonCheck = !isConsumable && returnQuantity !== originalQuantity;
+        
+        console.log(`  => Requires Reason Check (Submission): ${requiresReasonCheck}`);
         
         // Format reason only if required and provided
         const reason = requiresReasonCheck ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]?.trim()}` : undefined;
 
-        console.log('Processing check-in for:', item.item?.name);
-        console.log('Is consumable (Processing Check):', isConsumable);
-        console.log('Return quantity:', returnQuantity);
-        console.log('Requires Reason Check:', requiresReasonCheck);
-        console.log('Final Reason being sent:', reason);
+        console.log(`  Reason Code State: ${reasonCodes[item.id]}`);
+        console.log(`  Reason Desc State: ${reasons[item.id]}`);
+        console.log(`  => Final Reason being sent:`, reason);
 
         if (!user?.id) {
           throw new Error('User ID is required for check-in');
