@@ -86,24 +86,22 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     }))
 
     const item = items.find(i => i.id === itemId)
-    if (item) {
-      const itemCategory = categories.find(cat => cat.name === item.item?.category)
-      const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-      const originalQuantity = Number(item.actual_quantity)
-      const shouldBeVisible = !isConsumable && numericNewQuantity !== originalQuantity
-      
-      console.log(`[handleQuantityChange - ${item.item?.name}]`)
-      console.log(`  New Qty: ${numericNewQuantity}, Original Qty: ${originalQuantity}`)
-      console.log(`  Is Consumable: ${isConsumable}`)
-      console.log(`  => Setting Reason Visibility: ${shouldBeVisible}`)
-
-      setReasonVisibility(prev => ({
-        ...prev,
-        [itemId]: shouldBeVisible
-      }))
-    } else {
-       console.warn(`Item with ID ${itemId} not found during quantity change handling.`)
+    if (!item) {
+       console.warn(`Item with ID ${itemId} not found for visibility update.`)
+       setReasonVisibility(prev => ({ ...prev, [itemId]: false }))
+       return
     }
+
+    const itemCategory = categories.find(cat => cat.name === item.item?.category)
+    const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
+    const originalQuantity = Number(item.actual_quantity)
+    const shouldBeVisible = !isConsumable && numericNewQuantity !== originalQuantity
+    
+    setReasonVisibility(prev => ({
+      ...prev,
+      [itemId]: shouldBeVisible
+    }))
+    console.log(`[handleQuantityChange - ${item.item?.name}] Set Visibility to: ${shouldBeVisible}`)
   }
 
   const handleReasonChange = (itemId: string, value: string) => {
@@ -145,7 +143,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         
         // 3. Check if reason is needed and if UI *should* have shown the fields
         if (reasonIsNeeded) {
-          // Check the state variable that controls UI visibility
           const shouldUIVisible = reasonVisibility[item.id] === true;
           const currentReasonCode = reasonCodes[item.id];
           const currentReasonDesc = reasons[item.id]?.trim();
@@ -153,19 +150,15 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           console.log(`[Submit Check - ${item.item?.name}] Reason Needed: ${reasonIsNeeded}, UI Should Be Visible State: ${shouldUIVisible}, Code Provided: ${!!currentReasonCode}, Desc Provided: ${!!currentReasonDesc}`);
 
           if (!shouldUIVisible) {
-             // STATE INCONSISTENCY: Logic says reason needed, but UI state says fields were hidden.
              console.error(`[Submit Check - ${item.item?.name}] Internal State Error: Reason required but reasonVisibility state was false. Qty: ${returnQuantity}/${originalQuantity}, isConsumable: ${isConsumable}`);
              throw new Error(`Internal state error for ${item.item?.name}. Please refresh and try again.`);
           }
           
-          // If UI should have been visible, now check if values were actually entered
           if (!currentReasonCode || !currentReasonDesc) {
-               // UI was supposed to be visible, but user didn't fill it out.
                console.error(`[Submit Check - ${item.item?.name}] Client Input Error: Reason required and UI visible, but input missing.`);
                throw new Error(`Reason required for ${item.item?.name} but not provided. Please fill in the reason details.`);
            }
            
-           // If all checks pass, format the reason
            reasonToSend = `${currentReasonCode}: ${currentReasonDesc}`;
         }
         
@@ -176,21 +169,12 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         }
 
         // 4. Call the backend action
-        const { error } = await updateCheckoutItem(
-          item.id,
-          returnQuantity,
-          'checked_in',
-          user.id,
-          reasonToSend
-        );
-
+        const { error } = await updateCheckoutItem(item.id, returnQuantity, 'checked_in', user.id, reasonToSend);
         if (error) {
           console.error(`Backend Error for ${item.item?.name}:`, error);
-          throw error; // Let outer catch handle toast
+          throw error; 
         }
       }
-
-      // If loop completes without error
       onComplete();
       onClose();
     } catch (error) { 
@@ -215,11 +199,18 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category)
             const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-            const currentReturnQuantity = Number(returnQuantities[item.id] ?? 0)
-            const originalQuantity = Number(item.actual_quantity)
-            
+            const currentReturnQuantity = returnQuantities[item.id] ?? ''
+            const visibleState = reasonVisibility[item.id] === true
+
             return (
-              <div key={item.id} className="space-y-2 p-4 border rounded-lg">
+              <div key={item.id} className="space-y-2 p-4 border rounded-lg relative">
+                <div style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(255,255,0,0.7)', padding: '2px 4px', fontSize: '9px', lineHeight: '1.1', zIndex: 10 }}>
+                  DEBUG:<br />
+                  isC: {isConsumable.toString()}<br />
+                  retQ: {currentReturnQuantity}<br />
+                  origQ: {item.actual_quantity}<br />
+                  visState: {visibleState.toString()}
+                </div>
                 <div className="flex justify-between items-center">
                   <div>
                     <h4 className="font-medium">{item.item?.name}</h4>
@@ -241,14 +232,14 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                       type="number"
                       min="0"
                       max={item.actual_quantity}
-                      value={returnQuantities[item.id] ?? ''}
+                      value={currentReturnQuantity}
                       onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                     />
                   </div>
                 </div>
 
-                {reasonVisibility[item.id] && (
-                  <div className="space-y-2">
+                {visibleState && (
+                  <div className="space-y-2 border-t pt-2 mt-2 border-dashed">
                     <div>
                       <Label>Reason Code</Label>
                       <Select
