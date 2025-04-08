@@ -130,8 +130,20 @@ export function CheckoutDialog({
         <div className="space-y-4">
           {items.map((item) => (
             <div key={item.id} className="flex items-center gap-4 p-4 border rounded-lg">
+              <Checkbox
+                checked={checkedItems[item.id]}
+                onCheckedChange={(checked) => {
+                  setCheckedItems(prev => ({
+                    ...prev,
+                    [item.id]: checked as boolean
+                  }));
+                }}
+              />
               <div className="flex-1">
                 <div className="font-medium">{item.item?.name}</div>
+                <div className="text-sm text-muted-foreground">
+                  Category: {item.item?.category}
+                </div>
                 <div className="text-sm text-muted-foreground">
                   Original Quantity: {item.original_quantity}
                 </div>
@@ -152,6 +164,15 @@ export function CheckoutDialog({
                   }}
                   className="w-24"
                 />
+                {type === 'checkin' && ['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '') && 
+                  item.actual_quantity !== item.original_quantity && (
+                    <Input
+                      placeholder="Reason for mismatch"
+                      value={reasons[item.id] || ''}
+                      onChange={(e) => handleReasonChange(item.id, e.target.value)}
+                      className="w-48"
+                    />
+                )}
               </div>
             </div>
           ))}
