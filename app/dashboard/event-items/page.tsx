@@ -101,13 +101,13 @@ export default function EventItemsPage() {
   useEffect(() => {
     if (selectedEvent) {
       fetchData();
+    } else {
+      // Reset data when no event is selected
+      setEventItems([]);
+      setItems([]);
+      setIsLoading(false);
     }
   }, [selectedEvent]);
-
-  // Filter event items based on selected event
-  const filteredEventItems = selectedEvent
-    ? eventItems.filter(item => item.event_name === selectedEvent)
-    : eventItems
 
   const fetchData = async () => {
     try {
@@ -117,7 +117,8 @@ export default function EventItemsPage() {
       // Fetch all items first
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
-        .select('*');
+        .select('*')
+        .order('name');
 
       if (itemsError) throw itemsError;
 
@@ -145,7 +146,8 @@ export default function EventItemsPage() {
             )
           )
         `)
-        .eq('event_name', selectedEvent);
+        .eq('event_name', selectedEvent)
+        .order('created_at', { ascending: false });
 
       if (eventItemsError) throw eventItemsError;
 
@@ -194,10 +196,20 @@ export default function EventItemsPage() {
     } catch (err) {
       console.error('Error fetching data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to fetch data",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Filter event items based on selected event
+  const filteredEventItems = selectedEvent
+    ? eventItems.filter(item => item.event_name === selectedEvent)
+    : [];
 
   const handleAddItem = async () => {
     if (!selectedEvent || !selectedItem || quantity <= 0) {
