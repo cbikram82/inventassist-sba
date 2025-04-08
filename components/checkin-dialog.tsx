@@ -214,15 +214,20 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           {items.map((item) => {
             const itemCategory = categories.find(cat => cat.name === item.item?.category);
             const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
-            const currentReturnQuantity = returnQuantities[item.id] ?? 0;
-            const requiresReason = !isConsumable && currentReturnQuantity !== item.actual_quantity;
+            const currentReturnQuantity = Number(returnQuantities[item.id] ?? 0);
+            const originalQuantity = Number(item.actual_quantity);
+            
+            console.log(`[Render Check - ${item.item?.name}]`);
+            console.log(`  Category Found:`, itemCategory);
+            console.log(`  Is Consumable Flag: ${itemCategory?.is_consumable}, Determined isConsumable: ${isConsumable}`);
+            console.log(`  Current Return Qty (State): ${currentReturnQuantity} (Type: ${typeof currentReturnQuantity})`);
+            console.log(`  Original Qty (Props): ${originalQuantity} (Type: ${typeof originalQuantity})`);
+            console.log(`  Condition (!isConsumable): ${!isConsumable}`);
+            console.log(`  Condition (currentReturnQuantity !== originalQuantity): ${currentReturnQuantity !== originalQuantity}`);
+            
+            const requiresReason = !isConsumable && currentReturnQuantity !== originalQuantity;
 
-            console.log('Rendering item:', item.item?.name);
-            console.log('Category:', itemCategory);
-            console.log('Is consumable:', isConsumable);
-            console.log('Current Return quantity from state:', currentReturnQuantity);
-            console.log('Actual quantity checked out:', item.actual_quantity);
-            console.log('Requires reason:', requiresReason);
+            console.log(`  => Requires Reason: ${requiresReason}`);
 
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
