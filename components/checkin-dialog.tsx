@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,32 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
+  const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, is_consumable')
+        .order('name')
+
+      if (error) {
+        console.error('Error fetching categories:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load categories",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setCategories(data || [])
+    }
+
+    if (isOpen) {
+      fetchCategories()
+    }
+  }, [isOpen, toast])
 
   const handleQuantityChange = (itemId: string, value: string) => {
     setReturnQuantities(prev => ({
@@ -61,10 +87,10 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       // Validate all items before proceeding
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
-        const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
-        const isNonConsumable = !isConsumable;
+        const itemCategory = categories.find(cat => cat.name === item.item?.category);
+        const isConsumable = itemCategory?.is_consumable || false;
 
-        // Basic validation
+        // Basic validation for all items
         if (returnQuantity <= 0) {
           toast({
             title: "Validation Error",
@@ -83,12 +109,25 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           return;
         }
 
-        // Non-consumable specific validation
-        if (isNonConsumable && returnQuantity !== item.actual_quantity) {
-          if (!reasonCodes[item.id] || !reasons[item.id]) {
+        // Category-specific validation
+        if (!isConsumable) {
+          // For non-consumable items, require exact return or valid reason
+          if (returnQuantity !== item.actual_quantity) {
+            if (!reasonCodes[item.id] || !reasons[item.id]) {
+              toast({
+                title: "Validation Error",
+                description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+        } else {
+          // For consumable items, allow partial returns without reason
+          if (returnQuantity < item.actual_quantity && (!reasonCodes[item.id] || !reasons[item.id])) {
             toast({
               title: "Validation Error",
-              description: `For ${item.item?.name}, you must return the exact quantity (${item.actual_quantity}) or provide both a reason code and description.`,
+              description: `For ${item.item?.name}, please provide a reason for returning less than the checked out quantity.`,
               variant: "destructive",
             });
             return;
@@ -99,9 +138,9 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       // Proceed with check-in for each item
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
-        const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
-        const isNonConsumable = !isConsumable;
-        const reason = isNonConsumable && returnQuantity !== item.actual_quantity ? 
+        const itemCategory = categories.find(cat => cat.name === item.item?.category);
+        const isConsumable = itemCategory?.is_consumable || false;
+        const reason = returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : null;
 
         // Update checkout item status first
@@ -184,10 +223,10 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         </DialogHeader>
         <div className="space-y-4">
           {items.map((item) => {
-            const isConsumable = item.item?.category === "Consumables" || item.item?.category === "Puja Consumables";
-            const isNonConsumable = !isConsumable;
+            const itemCategory = categories.find(cat => cat.name === item.item?.category);
+            const isConsumable = itemCategory?.is_consumable || false;
             const returnQuantity = returnQuantities[item.id] || 0;
-            const requiresReason = isNonConsumable && returnQuantity < item.actual_quantity;
+            const requiresReason = !isConsumable && returnQuantity < item.actual_quantity;
 
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
@@ -200,7 +239,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     <p className="text-sm text-muted-foreground">
                       Category: {item.item?.category}
                     </p>
-                    {isNonConsumable && (
+                    {!isConsumable && (
                       <p className="text-sm text-yellow-600">
                         Note: You must return the exact quantity checked out unless items are damaged or lost
                       </p>
