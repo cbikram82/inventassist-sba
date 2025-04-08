@@ -115,8 +115,15 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           throw new Error(`Error fetching current item quantity: ${fetchError.message}`);
         }
 
-        // Calculate new quantity (add back only the returned quantity)
-        const newQuantity = (currentItem?.quantity || 0) + returnQuantity;
+        // Calculate new quantity based on item type
+        let newQuantity = currentItem?.quantity || 0;
+        if (isNonConsumable) {
+          // For non-consumable items, add back the full checked out quantity
+          newQuantity += item.actual_quantity;
+        } else {
+          // For consumable items, add back only the returned quantity
+          newQuantity += returnQuantity;
+        }
 
         // Update item quantity
         const { error: updateError } = await supabase
