@@ -108,7 +108,7 @@ export default function EventItemsPage() {
             checked_by,
             checked_at,
             reason,
-            user:users (
+            user:users!checkout_items_checked_by_fkey (
               name
             )
           )
