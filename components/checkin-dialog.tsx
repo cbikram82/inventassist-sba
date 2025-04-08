@@ -52,7 +52,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         return
       }
 
-      console.log('Fetched categories:', data)
+      console.log('Fetched categories from DB:', data)
       setCategories(data || [])
     }
 
@@ -90,7 +90,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       for (const item of items) {
         const returnQuantity = returnQuantities[item.id] || 0;
         const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        console.log('Item category:', itemCategory, 'for item:', item.item?.name);
+        console.log('Item:', item.item?.name, 'Category:', item.item?.category);
+        console.log('Found category in DB:', itemCategory);
         
         // If category is not found or is_consumable is false, treat as non-consumable
         const isConsumable = itemCategory?.is_consumable === true;
@@ -140,6 +141,13 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const reason = !isConsumable && returnQuantity !== item.actual_quantity ? 
           `${reasonCodes[item.id]}: ${reasons[item.id]}` : undefined;
 
+        console.log('Processing check-in for:', item.item?.name);
+        console.log('Category:', itemCategory);
+        console.log('Is consumable:', isConsumable);
+        console.log('Return quantity:', returnQuantity);
+        console.log('Actual quantity:', item.actual_quantity);
+        console.log('Reason:', reason);
+
         if (!user?.id) {
           throw new Error('User ID is required for check-in');
         }
@@ -186,7 +194,12 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             const returnQuantity = returnQuantities[item.id] || 0;
             const requiresReason = !isConsumable && returnQuantity !== item.actual_quantity;
 
-            console.log('Rendering item:', item.item?.name, 'category:', itemCategory, 'isConsumable:', isConsumable, 'requiresReason:', requiresReason);
+            console.log('Rendering item:', item.item?.name);
+            console.log('Category:', itemCategory);
+            console.log('Is consumable:', isConsumable);
+            console.log('Return quantity:', returnQuantity);
+            console.log('Actual quantity:', item.actual_quantity);
+            console.log('Requires reason:', requiresReason);
 
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
