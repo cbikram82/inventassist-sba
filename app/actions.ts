@@ -289,8 +289,19 @@ export async function updateCheckoutItem(
       throw new Error(`Checkout item not found with ID: ${itemId}`);
     }
 
-    // For non-consumable items during check-in, require a reason if quantities don't match
-    const isNonConsumable = ['Equipment', 'Furniture', 'Electronics'].includes(checkoutItem.item.category);
+    // Get the category details to check if the item is consumable
+    const { data: category, error: categoryError } = await supabase
+      .from('categories')
+      .select('is_consumable')
+      .eq('name', checkoutItem.item.category)
+      .single();
+
+    if (categoryError && categoryError.code !== 'PGRST116') {
+      throw new Error(`Error fetching category: ${categoryError.message}`);
+    }
+
+    // If category is not found or is_consumable is false, treat as non-consumable
+    const isNonConsumable = !category || !category.is_consumable;
     const isCheckin = status === 'checked_in';
 
     if (isNonConsumable && isCheckin && actualQuantity !== checkoutItem.actual_quantity && !reason) {
