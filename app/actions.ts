@@ -384,7 +384,7 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
         )
       `)
       .eq('checkout_task_id', taskId)
-      .eq('status', 'checked');
+      .in('status', ['checked', 'checked_in']); // Include both checked and checked_in items
 
     if (fetchError) {
       throw new Error(`Error fetching checkout items: ${fetchError.message}`);
@@ -400,8 +400,15 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
         throw new Error(`Item not found for checkout item ${checkoutItem.id}`);
       }
 
-      // Calculate new quantity (subtract only the actual quantity being checked out)
-      const newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
+      // Calculate new quantity based on the status
+      let newQuantity = checkoutItem.item.quantity;
+      if (checkoutItem.status === 'checked') {
+        // For checkout: subtract the actual quantity
+        newQuantity = checkoutItem.item.quantity - checkoutItem.actual_quantity;
+      } else if (checkoutItem.status === 'checked_in') {
+        // For check-in: add back the actual quantity
+        newQuantity = checkoutItem.item.quantity + checkoutItem.actual_quantity;
+      }
 
       if (newQuantity < 0) {
         throw new Error(`Insufficient quantity for item ${checkoutItem.item.id}`);
@@ -417,15 +424,15 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
         throw new Error(`Error updating item quantity: ${updateError.message}`);
       }
 
-      // Create audit log for checkout
+      // Create audit log for the action
       const { error: auditError } = await supabase
         .from('audit_logs')
         .insert([{
           user_id: userId,
-          action: 'checkout',
+          action: checkoutItem.status === 'checked' ? 'checkout' : 'checkin',
           item_id: checkoutItem.item_id,
           checkout_task_id: taskId,
-          quantity_change: -checkoutItem.actual_quantity
+          quantity_change: checkoutItem.status === 'checked' ? -checkoutItem.actual_quantity : checkoutItem.actual_quantity
         }]);
 
       if (auditError) {
@@ -433,26 +440,23 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
       }
     }
 
-    // Update checkout task status
+    // Update the task status to completed
     const { error: taskError } = await supabase
       .from('checkout_tasks')
-      .update({
+      .update({ 
         status: 'completed',
         completed_at: new Date().toISOString()
       })
       .eq('id', taskId);
 
     if (taskError) {
-      throw new Error(`Error updating checkout task: ${taskError.message}`);
+      throw new Error(`Error updating task status: ${taskError.message}`);
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Error completing checkout task:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to complete checkout task' 
-    };
+    console.error('Error in completeCheckoutTask:', error);
+    return { error: error instanceof Error ? error.message : 'Failed to complete checkout task' };
   }
 }
 
