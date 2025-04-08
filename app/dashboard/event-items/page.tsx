@@ -97,6 +97,13 @@ export default function EventItemsPage() {
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
   const [currentCheckinItems, setCurrentCheckinItems] = useState<CheckoutItemWithDetails[]>([]);
 
+  // Add useEffect to fetch data when selectedEvent changes
+  useEffect(() => {
+    if (selectedEvent) {
+      fetchData();
+    }
+  }, [selectedEvent]);
+
   // Filter event items based on selected event
   const filteredEventItems = selectedEvent
     ? eventItems.filter(item => item.event_name === selectedEvent)
@@ -148,24 +155,28 @@ export default function EventItemsPage() {
         
         // Calculate checked out and checked in quantities
         const checkedOutQuantity = checkoutItems
-          .filter(ci => ci.status === 'checked')
-          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
+          .filter((ci: CheckoutItem) => ci.status === 'checked')
+          .reduce((sum: number, ci: CheckoutItem) => sum + (ci.actual_quantity || 0), 0);
 
         const checkedInQuantity = checkoutItems
-          .filter(ci => ci.status === 'checked_in')
-          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
+          .filter((ci: CheckoutItem) => ci.status === 'checked_in')
+          .reduce((sum: number, ci: CheckoutItem) => sum + (ci.actual_quantity || 0), 0);
 
         // Calculate remaining quantity based on original quantity and checkouts/checkins
         const remainingQuantity = eventItem.quantity - (checkedOutQuantity - checkedInQuantity);
 
         // Get last checkout/check-in details
         const lastCheckout = checkoutItems
-          .filter(ci => ci.status === 'checked')
-          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+          .filter((ci: CheckoutItem) => ci.status === 'checked')
+          .sort((a: CheckoutItem, b: CheckoutItem) => 
+            new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+          )[0];
 
         const lastCheckin = checkoutItems
-          .filter(ci => ci.status === 'checked_in')
-          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+          .filter((ci: CheckoutItem) => ci.status === 'checked_in')
+          .sort((a: CheckoutItem, b: CheckoutItem) => 
+            new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+          )[0];
 
         return {
           ...eventItem,
@@ -187,11 +198,6 @@ export default function EventItemsPage() {
       setIsLoading(false);
     }
   };
-
-  // Add useEffect to fetch data on component mount
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const handleAddItem = async () => {
     if (!selectedEvent || !selectedItem || quantity <= 0) {
@@ -326,6 +332,7 @@ export default function EventItemsPage() {
     // Refresh the event items list
     fetchData();
     setCurrentCheckoutTask(null);
+    setIsCheckoutDialogOpen(false);
   };
 
   const handleCheckin = async () => {
@@ -371,9 +378,11 @@ export default function EventItemsPage() {
   }
 
   const handleCheckinComplete = () => {
-    fetchData()
-    setCurrentCheckinItems([])
-  }
+    // Refresh the event items list
+    fetchData();
+    setCurrentCheckinItems([]);
+    setIsCheckinDialogOpen(false);
+  };
 
   if (isLoading) {
     return (
