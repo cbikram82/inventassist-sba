@@ -248,18 +248,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             const currentReturnQuantity = Number(returnQuantities[item.id] ?? 0);
             const originalQuantity = Number(item.actual_quantity);
             
-            console.log(`[Render Check - ${item.item?.name}]`);
-            console.log(`  Category Found:`, itemCategory);
-            console.log(`  Is Consumable Flag: ${itemCategory?.is_consumable}, Determined isConsumable: ${isConsumable}`);
-            console.log(`  Current Return Qty (State): ${currentReturnQuantity} (Type: ${typeof currentReturnQuantity})`);
-            console.log(`  Original Qty (Props): ${originalQuantity} (Type: ${typeof originalQuantity})`);
-            console.log(`  Condition (!isConsumable): ${!isConsumable}`);
-            console.log(`  Condition (currentReturnQuantity !== originalQuantity): ${currentReturnQuantity !== originalQuantity}`);
-            
-            const requiresReason = !isConsumable && currentReturnQuantity !== originalQuantity;
-
-            console.log(`  => Requires Reason: ${requiresReason}`);
-
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
                 <div className="flex justify-between items-center">
@@ -289,7 +277,21 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                   </div>
                 </div>
 
-                {requiresReason && (
+                {(() => {
+                  const currentItemCategory = categories.find(cat => cat.name === item.item?.category);
+                  const currentIsConsumable = currentItemCategory ? currentItemCategory.is_consumable === true : false;
+                  const currentReturnQty = Number(returnQuantities[item.id] ?? 0);
+                  const currentOriginalQty = Number(item.actual_quantity);
+                  const shouldRequireReason = !currentIsConsumable && currentReturnQty !== currentOriginalQty;
+
+                  console.log(`[Inline Render Check - ${item.item?.name}]`);
+                  console.log(`  isConsumable: ${currentIsConsumable}`);
+                  console.log(`  currentReturnQty: ${currentReturnQty}`);
+                  console.log(`  originalQty: ${currentOriginalQty}`);
+                  console.log(`  >>> Should Require Reason?: ${shouldRequireReason}`);
+
+                  return shouldRequireReason;
+                })() && (
                   <div className="space-y-2">
                     <div>
                       <Label>Reason Code</Label>
