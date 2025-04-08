@@ -372,7 +372,7 @@ export async function updateCheckoutItem(
 
 export async function completeCheckoutTask(taskId: string, userId: string) {
   try {
-    // Get all checkout items for this task with their item details
+    // Get all checkout items for this task with their item and event item details
     const { data: checkoutItems, error: fetchError } = await supabase
       .from('checkout_items')
       .select(`
@@ -381,6 +381,10 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
           id,
           quantity,
           category
+        ),
+        event_item:event_items (
+          id,
+          quantity
         )
       `)
       .eq('checkout_task_id', taskId)
@@ -396,8 +400,8 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
 
     // Process each checkout item
     for (const checkoutItem of checkoutItems) {
-      if (!checkoutItem.item) {
-        throw new Error(`Item not found for checkout item ${checkoutItem.id}`);
+      if (!checkoutItem.item || !checkoutItem.event_item) {
+        throw new Error(`Item or event item not found for checkout item ${checkoutItem.id}`);
       }
 
       // Calculate new quantity based on the status
@@ -410,8 +414,9 @@ export async function completeCheckoutTask(taskId: string, userId: string) {
         newQuantity = checkoutItem.item.quantity + checkoutItem.actual_quantity;
       }
 
-      if (newQuantity < 0) {
-        throw new Error(`Insufficient quantity for item ${checkoutItem.item.id}`);
+      // Check if the event item has sufficient quantity
+      if (checkoutItem.status === 'checked' && checkoutItem.actual_quantity > checkoutItem.event_item.quantity) {
+        throw new Error(`Insufficient quantity in event for item ${checkoutItem.item.id}`);
       }
 
       // Update item quantity
