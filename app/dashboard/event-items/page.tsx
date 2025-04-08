@@ -35,22 +35,39 @@ interface Item {
   person_name?: string
 }
 
+interface CheckoutItem {
+  id: string;
+  status: 'checked' | 'checked_in' | 'cancelled';
+  actual_quantity: number;
+  checked_by: string;
+  checked_at: string;
+  reason: string | null;
+  user: {
+    name: string;
+  };
+}
+
 interface ProcessedEventItem {
-  id: string
-  event_name: string
-  item_id: string
-  item_name: string
-  quantity: number
-  created_at: string
-  updated_at: string
-  remaining_quantity: number
-  is_checked_out: boolean
-  last_checked_by?: string
-  last_checked_at?: string
-  checkout_items?: CheckoutItemWithDetails[]
-  item?: {
-    quantity: number
-  }
+  id: string;
+  item_id: string;
+  event_name: string;
+  item_name: string;
+  quantity: number;
+  created_at: string;
+  updated_at: string;
+  item: {
+    id: string;
+    name: string;
+    category: string;
+    quantity: number;
+  };
+  checkout_items: CheckoutItem[];
+  remainingQuantity: number;
+  is_checked_out: boolean;
+  checkedOutQuantity: number;
+  checkedInQuantity: number;
+  last_checked_by?: string;
+  last_checked_at?: string;
 }
 
 interface Event {
@@ -90,6 +107,14 @@ export default function EventItemsPage() {
       setIsLoading(true);
       setError(null);
 
+      // Fetch all items first
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('items')
+        .select('*')
+        .order('name');
+
+      if (itemsError) throw itemsError;
+
       // Fetch event items with all necessary details
       const { data: eventItems, error: eventItemsError } = await supabase
         .from('event_items')
@@ -123,19 +148,21 @@ export default function EventItemsPage() {
         
         // Calculate checked out and checked in quantities
         const checkedOutQuantity = checkoutItems
-          .filter(ci => ci.status === 'checked')
-          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
+          .filter((ci: CheckoutItem) => ci.status === 'checked')
+          .reduce((sum: number, ci: CheckoutItem) => sum + (ci.actual_quantity || 0), 0);
 
         const checkedInQuantity = checkoutItems
-          .filter(ci => ci.status === 'checked_in')
-          .reduce((sum, ci) => sum + (ci.actual_quantity || 0), 0);
+          .filter((ci: CheckoutItem) => ci.status === 'checked_in')
+          .reduce((sum: number, ci: CheckoutItem) => sum + (ci.actual_quantity || 0), 0);
 
         // Calculate remaining quantity
         const remainingQuantity = (eventItem.item?.quantity || 0) - (checkedOutQuantity - checkedInQuantity);
 
         // Get last checkout/checkin details
         const lastCheckout = checkoutItems
-          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+          .sort((a: CheckoutItem, b: CheckoutItem) => 
+            new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+          )[0];
 
         return {
           ...eventItem,
@@ -145,9 +172,10 @@ export default function EventItemsPage() {
           checkedInQuantity,
           last_checked_by: lastCheckout?.user?.name,
           last_checked_at: lastCheckout?.checked_at
-        };
+        } as ProcessedEventItem;
       });
 
+      setItems(itemsData || []);
       setEventItems(processedItems);
     } catch (error) {
       console.error('Error fetching data:', error);
