@@ -42,6 +42,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
   const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
+  const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -125,49 +126,51 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const handleCheckin = async () => {
     try {
       setLoading(true)
-      const errors: { [key: string]: string } = {}
+      setErrors({})
 
-      if (!user?.id) {
-        throw new Error('User ID is required for check-in')
+      // Validate that at least one item is selected
+      const selectedItems = items.filter(item => selectedItemsMap[item.id])
+      if (selectedItems.length === 0) {
+        setErrors({ general: "Please select at least one item to check in" })
+        return
       }
 
-      // Validate all items
-      for (const item of items) {
+      // Validate all items first
+      for (const item of selectedItems) {
         const returnQuantity = returnQuantities[item.id] || 0
         const itemCategory = categories.find(c => c.name === item.item?.category)
-        const isNonConsumable = !itemCategory || !itemCategory.is_consumable
+        const isConsumable = itemCategory?.is_consumable === true
 
         console.log('Validating item:', {
           name: item.item?.name,
           category: item.item?.category,
-          isConsumable: !isNonConsumable,
+          isConsumable,
           returnQuantity,
           actualQuantity: item.actual_quantity,
           reasonCode: reasonCodes[item.id],
           reason: reasons[item.id]
         })
 
-        if (isNonConsumable && returnQuantity !== item.actual_quantity) {
-          if (!reasonCodes[item.id] || !reasons[item.id]) {
-            errors[item.id] = "Reason code and description are required for non-consumable items when quantities don't match"
+        if (!isConsumable) {
+          // For non-consumable items, require exact return or valid reason
+          if (returnQuantity !== item.actual_quantity) {
+            if (!reasonCodes[item.id] || !reasons[item.id]) {
+              setErrors({ [item.id]: "Please provide a reason for this item as the return quantity doesn't match the checked out quantity" })
+              return
+            }
           }
         }
       }
 
-      if (Object.keys(errors).length > 0) {
-        setErrors(errors)
-        return
-      }
-
       // Process each item
-      for (const item of items) {
+      for (const item of selectedItems) {
         const returnQuantity = returnQuantities[item.id] || 0
         const itemCategory = categories.find(c => c.name === item.item?.category)
-        const isNonConsumable = !itemCategory || !itemCategory.is_consumable
+        const isConsumable = itemCategory?.is_consumable === true
 
         // Format reason as a string if needed
         let reason: string | undefined = undefined
-        if (isNonConsumable && returnQuantity !== item.actual_quantity) {
+        if (!isConsumable && returnQuantity !== item.actual_quantity) {
           const reasonCode = reasonCodes[item.id]
           const reasonText = reasons[item.id]
           if (reasonCode && reasonText) {
@@ -175,22 +178,13 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           }
         }
 
-        console.log('Processing item:', {
-          name: item.item?.name,
-          returnQuantity,
-          actualQuantity: item.actual_quantity,
-          isNonConsumable,
-          reason,
-          reasonCode: reasonCodes[item.id],
-          reasonText: reasons[item.id]
-        })
-
+        // Update checkout item status first
         const { error: updateError } = await supabase
           .from('checkout_items')
           .update({
             actual_quantity: returnQuantity,
             status: 'checked_in',
-            checked_by: user.id,
+            checked_by: user?.id,
             reason: reason
           })
           .eq('id', item.id)
@@ -223,7 +217,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             item_id: item.item_id,
             action: 'checkin',
             quantity_change: returnQuantity,
-            user_id: user.id,
+            user_id: user?.id,
             checkout_task_id: item.checkout_task_id,
             reason: reason
           })
@@ -238,11 +232,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       onComplete()
     } catch (error) {
       console.error('Error checking in items:', error)
-      toast({
-        title: "Error",
-        description: "Failed to check in items",
-        variant: "destructive",
-      })
+      setErrors({ general: "Failed to check in items. Please try again." })
     } finally {
       setLoading(false)
     }
@@ -255,78 +245,69 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           <DialogTitle>Check In Items</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {items.map((item) => {
-            const returnQuantity = returnQuantities[item.id] || 0
-            const itemCategory = categories.find(c => c.name === item.item?.category)
-            const isNonConsumable = !itemCategory || !itemCategory.is_consumable
-            const showReason = reasonVisibility[item.id] || false
-
-            console.log('Rendering item:', {
-              name: item.item?.name,
-              category: item.item?.category,
-              isNonConsumable,
-              returnQuantity,
-              actualQuantity: item.actual_quantity,
-              showReason,
-              itemCategory
-            })
-
-            return (
-              <div key={item.id} className="space-y-2 p-4 border rounded-lg">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-medium">{item.item?.name}</h4>
-                    <p className="text-sm text-gray-500">
-                      Category: {item.item?.category}
-                      {isNonConsumable && " (Non-Consumable)"}
-                    </p>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Checked Out: {item.actual_quantity}
-                  </div>
+          {items.map((item) => (
+            <div key={item.id} className="space-y-2 p-4 border rounded-lg">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedItemsMap[item.id] || false}
+                  onChange={(e) => {
+                    setSelectedItemsMap(prev => ({
+                      ...prev,
+                      [item.id]: e.target.checked
+                    }))
+                  }}
+                  className="h-4 w-4"
+                />
+                <div className="flex-1">
+                  <h4 className="font-medium">{item.item?.name}</h4>
+                  <p className="text-sm text-gray-500">
+                    Category: {item.item?.category}
+                    {!categories.find(c => c.name === item.item?.category)?.is_consumable && " (Non-Consumable)"}
+                  </p>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    max={item.actual_quantity}
-                    value={returnQuantity}
-                    onChange={(e) => {
-                      const newValue = parseInt(e.target.value)
-                      handleQuantityChange(item.id, newValue)
-                    }}
-                    className="w-24"
-                  />
-                  <span className="text-sm text-gray-500">of {item.actual_quantity}</span>
-                </div>
-
-                {showReason && (
-                  <div className="space-y-2 mt-2">
-                    <select
-                      value={reasonCodes[item.id] || ''}
-                      onChange={(e) => setReasonCodes(prev => ({ ...prev, [item.id]: e.target.value }))}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">Select a reason</option>
-                      <option value="damaged">Damaged</option>
-                      <option value="lost">Lost</option>
-                      <option value="other">Other</option>
-                    </select>
-                    <Input
-                      placeholder="Reason description"
-                      value={reasons[item.id] || ''}
-                      onChange={(e) => setReasons(prev => ({ ...prev, [item.id]: e.target.value }))}
-                    />
-                  </div>
-                )}
-
-                {errors[item.id] && (
-                  <p className="text-sm text-red-500">{errors[item.id]}</p>
-                )}
               </div>
-            )
-          })}
+              
+              {selectedItemsMap[item.id] && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      max={item.actual_quantity}
+                      value={returnQuantities[item.id] || 0}
+                      onChange={(e) => {
+                        const newValue = parseInt(e.target.value)
+                        handleQuantityChange(item.id, newValue)
+                      }}
+                      className="w-24"
+                    />
+                    <span className="text-sm text-gray-500">of {item.actual_quantity}</span>
+                  </div>
+
+                  {reasonVisibility[item.id] && (
+                    <div className="space-y-2 mt-2">
+                      <select
+                        value={reasonCodes[item.id] || ''}
+                        onChange={(e) => setReasonCodes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="">Select a reason</option>
+                        <option value="damaged">Damaged</option>
+                        <option value="lost">Lost</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <Input
+                        placeholder="Reason description"
+                        value={reasons[item.id] || ''}
+                        onChange={(e) => setReasons(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={loading}>
