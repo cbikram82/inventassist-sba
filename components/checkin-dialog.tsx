@@ -35,32 +35,15 @@ const REASON_CODES = [
 export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDialogProps) {
   const { toast } = useToast()
   const { user } = useUser()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
-  const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
-  const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [forceUpdate, setForceUpdate] = useState(0)
 
   useEffect(() => {
-    const initialQuantities: Record<string, number> = {}
-    const initialVisibility: Record<string, boolean> = {}
-    
-    items.forEach(item => {
-      const originalQuantity = Number(item.actual_quantity)
-      initialQuantities[item.id] = originalQuantity
-      initialVisibility[item.id] = false
-    })
-    
-    setReturnQuantities(initialQuantities)
-    setReasonVisibility(initialVisibility)
-    setReasons({})
-    setReasonCodes({})
-    setForceUpdateCounter(0)
-
     const fetchCategories = async () => {
       const { data, error } = await supabase
         .from('categories')
@@ -83,6 +66,12 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
     if (isOpen) {
       fetchCategories()
+      // Initialize return quantities with actual quantities
+      const initialQuantities: Record<string, number> = {}
+      items.forEach(item => {
+        initialQuantities[item.id] = item.actual_quantity
+      })
+      setReturnQuantities(initialQuantities)
     }
   }, [isOpen, items, toast])
 
@@ -91,7 +80,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       ...prev,
       [itemId]: value
     }))
-    setForceUpdateCounter(c => c + 1)
+    // Force a re-render
+    setForceUpdate(prev => prev + 1)
   }
 
   const handleReasonChange = (itemId: string, value: string) => {
@@ -266,14 +256,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     onChange={(e) => {
                       const newValue = parseInt(e.target.value)
                       handleQuantityChange(item.id, newValue)
-                      // Log when quantity changes
-                      console.log('Quantity changed:', {
-                        itemId: item.id,
-                        newValue,
-                        actualQuantity: item.actual_quantity,
-                        isNonConsumable,
-                        requiresReason: isNonConsumable && newValue !== item.actual_quantity
-                      })
                     }}
                     className="w-24"
                   />
@@ -281,7 +263,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                 </div>
 
                 {requiresReason && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 mt-2">
                     <select
                       value={reasonCodes[item.id] || ''}
                       onChange={(e) => setReasonCodes(prev => ({ ...prev, [item.id]: e.target.value }))}
