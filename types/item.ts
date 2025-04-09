@@ -6,10 +6,4 @@ export interface Item {
   description?: string
   created_at: string
   updated_at: string
-  item?: {
-    name: string
-    category: string
-  }
-  original_quantity: number
-  actual_quantity: number
 } 

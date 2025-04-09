@@ -41,28 +41,39 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<CheckoutError[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const fetchItems = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch items
+        const { data: itemsData, error: itemsError } = await supabase
           .from('items')
           .select('*')
-          .order('name');
+          .order('name')
 
-        if (error) throw error;
-        setItems(data || []);
+        if (itemsError) throw itemsError
+        setItems(itemsData || [])
+
+        // Fetch categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from('categories')
+          .select('id, name, is_consumable')
+          .order('name')
+
+        if (categoriesError) throw categoriesError
+        setCategories(categoriesData || [])
       } catch (error) {
-        console.error('Error fetching items:', error);
-        setErrors([{ type: 'general', message: 'Failed to fetch items' }]);
+        console.error('Error fetching data:', error)
+        setErrors([{ type: 'general', message: 'Failed to fetch data' }])
       }
-    };
+    }
 
-    fetchItems();
-  }, []);
+    fetchData()
+  }, [])
 
   useEffect(() => {
     // Initialize checked items and quantities
@@ -214,66 +225,52 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>
-            {event.name}
-          </DialogTitle>
+          <DialogTitle>Check Out Items for {event.name}</DialogTitle>
         </DialogHeader>
-
-        {errors.some(e => e.type === 'general') && (
-          <div className="bg-destructive/15 text-destructive p-3 rounded-md">
-            {errors.find(e => e.type === 'general')?.message}
-          </div>
-        )}
-
         <div className="space-y-4">
           {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-4 p-4 border rounded-lg">
-              <Checkbox
-                checked={selectedItemsMap[item.id]}
-                onCheckedChange={(checked) => {
-                  setSelectedItemsMap(prev => ({
-                    ...prev,
-                    [item.id]: checked as boolean
-                  }));
-                }}
-              />
-              <div className="flex-1">
-                <div className="font-medium">{item.item?.name}</div>
-                <div className="text-sm text-muted-foreground">
-                  Category: {item.item?.category}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Original Quantity: {item.quantity}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min="0"
-                  max={item.quantity}
-                  value={item.actual_quantity}
+            <div key={item.id} className="space-y-2 p-4 border rounded-lg">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedItemsMap[item.id] || false}
                   onChange={(e) => {
-                    const newItems = items.map(i => 
-                      i.id === item.id 
-                        ? { ...i, actual_quantity: parseInt(e.target.value) || 0 }
-                        : i
-                    );
-                    setItems(newItems);
+                    setSelectedItemsMap(prev => ({
+                      ...prev,
+                      [item.id]: e.target.checked
+                    }))
                   }}
-                  className="w-24"
+                  className="h-4 w-4"
                 />
-                {['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '') && 
-                  item.actual_quantity !== item.quantity && (
-                    <Input
-                      placeholder="Reason for mismatch"
-                      value={reasons[item.id] || ''}
-                      onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                      className="w-48"
-                    />
-                )}
+                <div className="flex-1">
+                  <h4 className="font-medium">{item.name}</h4>
+                  <p className="text-sm text-gray-500">
+                    Category: {item.category}
+                    {!categories.find(c => c.name === item.category)?.is_consumable && " (Non-Consumable)"}
+                  </p>
+                  <p className="text-sm text-gray-500">Available: {item.quantity}</p>
+                </div>
               </div>
+              
+              {selectedItemsMap[item.id] && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max={item.quantity}
+                    value={quantities[item.id] || 0}
+                    onChange={(e) => {
+                      const newValue = parseInt(e.target.value)
+                      handleQuantityChange(item.id, newValue)
+                    }}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-gray-500">of {item.quantity}</span>
+                </div>
+              )}
+              
               {errors.find(e => e.type === 'item' && e.itemId === item.id) && (
                 <p className="text-sm text-red-500">
                   {errors.find(e => e.type === 'item' && e.itemId === item.id)?.message}
@@ -282,20 +279,12 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
             </div>
           ))}
         </div>
-
         <DialogFooter>
-          <Button
-            onClick={handleCheckout}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Check Out'
-            )}
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleCheckout} disabled={loading}>
+            {loading ? "Checking Out..." : "Check Out"}
           </Button>
         </DialogFooter>
       </DialogContent>
