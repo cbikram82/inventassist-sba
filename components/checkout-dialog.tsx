@@ -14,13 +14,15 @@ import { Loader2 } from 'lucide-react';
 import { DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
+import { Item } from '@/types/item';
 
 interface CheckoutDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  taskId: string;
-  items: CheckoutItemWithDetails[];
-  type: 'checkout' | 'checkin';
+  event: {
+    id: string;
+    name: string;
+  };
   onComplete: () => void;
 }
 
@@ -33,37 +35,47 @@ type CheckoutError = {
   message: string
 }
 
-export function CheckoutDialog({
-  isOpen,
-  onClose,
-  taskId,
-  items: initialItems,
-  type,
-  onComplete
-}: CheckoutDialogProps) {
-  const { user } = useUser();
+export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutDialogProps) {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [items, setItems] = useState(initialItems);
-  const [error, setError] = useState<string | null>(null);
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const { user } = useUser();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<CheckoutError[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({});
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .order('name');
+
+        if (error) throw error;
+        setItems(data || []);
+      } catch (error) {
+        console.error('Error fetching items:', error);
+        setErrors([{ type: 'general', message: 'Failed to fetch items' }]);
+      }
+    };
+
+    fetchItems();
+  }, []);
 
   useEffect(() => {
     // Initialize checked items and quantities
     const initialChecked: Record<string, boolean> = {};
     const initialQuantities: Record<string, number> = {};
-    initialItems.forEach(item => {
+    items.forEach(item => {
       initialChecked[item.id] = false;
-      initialQuantities[item.id] = item.original_quantity;
+      initialQuantities[item.id] = item.quantity;
     });
-    setCheckedItems(initialChecked);
+    setSelectedItemsMap(initialChecked);
     setQuantities(initialQuantities);
-    setItems(initialItems);
-  }, [initialItems]);
+    setItems(items);
+  }, [items]);
 
   const handleQuantityChange = (itemId: string, value: number) => {
     setQuantities(prev => ({
@@ -79,53 +91,53 @@ export function CheckoutDialog({
     }));
   };
 
-  const handleComplete = async () => {
+  const handleCheckout = async () => {
     try {
-      setLoading(true);
-      setErrors([]);
+      setLoading(true)
+      setErrors([])
 
       // Validate that at least one item is selected
-      const selectedItems = items.filter(item => checkedItems[item.id]);
+      const selectedItems = items.filter(item => selectedItemsMap[item.id])
       if (selectedItems.length === 0) {
-        setErrors([{ type: 'general', message: "Please select at least one item to check out" }]);
-        return;
+        setErrors([{ type: 'general', message: "Please select at least one item to check out" }])
+        return
       }
 
       // Validate all items first
       for (const item of selectedItems) {
-        const quantity = quantities[item.id] || 0;
+        const quantity = quantities[item.id] || 0
         if (quantity <= 0) {
-          setErrors([{ type: 'item', itemId: item.id, message: "Quantity must be greater than 0" }]);
-          return;
+          setErrors([{ type: 'item', itemId: item.id, message: "Quantity must be greater than 0" }])
+          return
         }
-        if (quantity > item.original_quantity) {
-          setErrors([{ type: 'item', itemId: item.id, message: `Quantity cannot exceed available quantity (${item.original_quantity})` }]);
-          return;
+        if (quantity > item.quantity) {
+          setErrors([{ type: 'item', itemId: item.id, message: `Quantity cannot exceed available quantity (${item.quantity})` }])
+          return
         }
       }
 
       // Start a transaction
-      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction');
-      if (transactionError) throw transactionError;
+      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction')
+      if (transactionError) throw transactionError
 
       try {
         // Create checkout task
         const { data: task, error: taskError } = await supabase
           .from('checkout_tasks')
           .insert({
-            event_id: taskId,
+            event_id: event.id,
             status: 'in_progress',
             type: 'checkout',
             created_by: user?.id
           })
           .select()
-          .single();
+          .single()
 
-        if (taskError) throw taskError;
+        if (taskError) throw taskError
 
         // Process each item within the transaction
         for (const item of selectedItems) {
-          const quantity = quantities[item.id] || 0;
+          const quantity = quantities[item.id] || 0
 
           // Create checkout item
           const { error: itemError } = await supabase
@@ -137,19 +149,19 @@ export function CheckoutDialog({
               actual_quantity: quantity,
               status: 'checked_out',
               checked_by: user?.id
-            });
+            })
 
-          if (itemError) throw itemError;
+          if (itemError) throw itemError
 
           // Update item quantity
           const { error: updateError } = await supabase
             .from('items')
             .update({
-              quantity: item.original_quantity - quantity
+              quantity: item.quantity - quantity
             })
-            .eq('id', item.id);
+            .eq('id', item.id)
 
-          if (updateError) throw updateError;
+          if (updateError) throw updateError
 
           // Create audit log
           const { error: auditError } = await supabase
@@ -160,42 +172,52 @@ export function CheckoutDialog({
               quantity_change: -quantity,
               user_id: user?.id,
               checkout_task_id: task.id
-            });
+            })
 
-          if (auditError) throw auditError;
+          if (auditError) throw auditError
         }
 
         // Commit the transaction if all operations succeed
-        const { error: commitError } = await supabase.rpc('commit_transaction');
-        if (commitError) throw commitError;
+        const { error: commitError } = await supabase.rpc('commit_transaction')
+        if (commitError) throw commitError
 
         toast({
           title: "Success",
           description: "Items checked out successfully",
-        });
-        onComplete();
+        })
+        onComplete()
       } catch (error) {
         // Rollback the transaction if any operation fails
-        const { error: rollbackError } = await supabase.rpc('rollback_transaction');
+        const { error: rollbackError } = await supabase.rpc('rollback_transaction')
         if (rollbackError) {
-          console.error('Error rolling back transaction:', rollbackError);
+          console.error('Error rolling back transaction:', rollbackError)
         }
-        throw error;
+        // Restore the original quantities in case the rollback failed
+        for (const item of selectedItems) {
+          const quantity = quantities[item.id] || 0
+          await supabase
+            .from('items')
+            .update({
+              quantity: item.quantity + quantity
+            })
+            .eq('id', item.id)
+        }
+        throw error
       }
     } catch (error) {
-      console.error('Error checking out items:', error);
-      setErrors([{ type: 'general', message: "Failed to check out items. Please try again." }]);
+      console.error('Error checking out items:', error)
+      setErrors([{ type: 'general', message: "Failed to check out items. Please try again." }])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {type === 'checkout' ? 'Check Out Items' : 'Check In Items'}
+            {event.name}
           </DialogTitle>
         </DialogHeader>
 
@@ -209,9 +231,9 @@ export function CheckoutDialog({
           {items.map((item) => (
             <div key={item.id} className="flex items-center gap-4 p-4 border rounded-lg">
               <Checkbox
-                checked={checkedItems[item.id]}
+                checked={selectedItemsMap[item.id]}
                 onCheckedChange={(checked) => {
-                  setCheckedItems(prev => ({
+                  setSelectedItemsMap(prev => ({
                     ...prev,
                     [item.id]: checked as boolean
                   }));
@@ -223,14 +245,14 @@ export function CheckoutDialog({
                   Category: {item.item?.category}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Original Quantity: {item.original_quantity}
+                  Original Quantity: {item.quantity}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   min="0"
-                  max={item.original_quantity}
+                  max={item.quantity}
                   value={item.actual_quantity}
                   onChange={(e) => {
                     const newItems = items.map(i => 
@@ -242,8 +264,8 @@ export function CheckoutDialog({
                   }}
                   className="w-24"
                 />
-                {type === 'checkin' && ['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '') && 
-                  item.actual_quantity !== item.original_quantity && (
+                {['Equipment', 'Furniture', 'Electronics'].includes(item.item?.category || '') && 
+                  item.actual_quantity !== item.quantity && (
                     <Input
                       placeholder="Reason for mismatch"
                       value={reasons[item.id] || ''}
@@ -263,7 +285,7 @@ export function CheckoutDialog({
 
         <DialogFooter>
           <Button
-            onClick={handleComplete}
+            onClick={handleCheckout}
             disabled={loading}
           >
             {loading ? (
@@ -272,7 +294,7 @@ export function CheckoutDialog({
                 Processing...
               </>
             ) : (
-              type === 'checkout' ? 'Check Out' : 'Check In'
+              'Check Out'
             )}
           </Button>
         </DialogFooter>
