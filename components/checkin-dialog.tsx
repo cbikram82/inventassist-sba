@@ -86,6 +86,17 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     const isNonConsumable = !itemCategory || !itemCategory.is_consumable
     const hasQuantityMismatch = value !== item.actual_quantity
 
+    console.log('Quantity changed:', {
+      itemId,
+      value,
+      actualQuantity: item.actual_quantity,
+      category: item.item?.category,
+      isNonConsumable,
+      hasQuantityMismatch,
+      showReason: isNonConsumable && hasQuantityMismatch,
+      itemCategory
+    })
+
     setReturnQuantities(prev => ({
       ...prev,
       [itemId]: value
@@ -95,15 +106,6 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       ...prev,
       [itemId]: isNonConsumable && hasQuantityMismatch
     }))
-
-    console.log('Quantity changed:', {
-      itemId,
-      value,
-      actualQuantity: item.actual_quantity,
-      isNonConsumable,
-      hasQuantityMismatch,
-      showReason: isNonConsumable && hasQuantityMismatch
-    })
   }
 
   const handleReasonChange = (itemId: string, value: string) => {
@@ -140,7 +142,9 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           category: item.item?.category,
           isConsumable: !isNonConsumable,
           returnQuantity,
-          actualQuantity: item.actual_quantity
+          actualQuantity: item.actual_quantity,
+          reasonCode: reasonCodes[item.id],
+          reason: reasons[item.id]
         })
 
         if (isNonConsumable && returnQuantity !== item.actual_quantity) {
@@ -162,9 +166,24 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const isNonConsumable = !itemCategory || !itemCategory.is_consumable
 
         // Format reason as a string if needed
-        const reason = isNonConsumable && returnQuantity !== item.actual_quantity
-          ? `${reasonCodes[item.id]}: ${reasons[item.id]}`
-          : undefined
+        let reason: string | undefined = undefined
+        if (isNonConsumable && returnQuantity !== item.actual_quantity) {
+          const reasonCode = reasonCodes[item.id]
+          const reasonText = reasons[item.id]
+          if (reasonCode && reasonText) {
+            reason = `${reasonCode}: ${reasonText}`
+          }
+        }
+
+        console.log('Processing item:', {
+          name: item.item?.name,
+          returnQuantity,
+          actualQuantity: item.actual_quantity,
+          isNonConsumable,
+          reason,
+          reasonCode: reasonCodes[item.id],
+          reasonText: reasons[item.id]
+        })
 
         const { error: updateError } = await supabase
           .from('checkout_items')
@@ -249,7 +268,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
               isNonConsumable,
               returnQuantity,
               actualQuantity: item.actual_quantity,
-              showReason
+              showReason,
+              itemCategory
             })
 
             return (
