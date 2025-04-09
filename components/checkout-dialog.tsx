@@ -35,6 +35,25 @@ type CheckoutError = {
   message: string
 }
 
+interface EventItemData {
+  id: string
+  event_name: string
+  item_id: string
+  item_name: string
+  quantity: number
+  created_at: string
+  updated_at: string
+  item?: {
+    id: string
+    name: string
+    category: string
+    quantity: number
+    description: string
+    created_at: string
+    updated_at: string
+  }
+}
+
 export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutDialogProps) {
   const { toast } = useToast();
   const { user } = useUser();
@@ -53,14 +72,43 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch items
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('items')
-          .select('*')
-          .order('name')
+        // Fetch event items
+        const { data: eventItems, error: eventItemsError } = await supabase
+          .from('event_items')
+          .select(`
+            id,
+            event_name,
+            item_id,
+            item_name,
+            quantity,
+            created_at,
+            updated_at,
+            item:items (
+              id,
+              name,
+              category,
+              quantity,
+              description,
+              created_at,
+              updated_at
+            )
+          `)
+          .eq('event_name', event.name)
 
-        if (itemsError) throw itemsError
-        setItems(itemsData || [])
+        if (eventItemsError) throw eventItemsError
+
+        // Transform the data to match our Item type
+        const items = (eventItems as unknown as EventItemData[])?.map(ei => ({
+          id: ei.item_id,
+          name: ei.item_name,
+          category: ei.item?.category || '',
+          quantity: ei.quantity,
+          description: ei.item?.description || '',
+          created_at: ei.item?.created_at || ei.created_at,
+          updated_at: ei.item?.updated_at || ei.updated_at
+        })) || []
+
+        setItems(items)
 
         // Fetch categories
         const { data: categoriesData, error: categoriesError } = await supabase
@@ -77,7 +125,7 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
     }
 
     fetchData()
-  }, [])
+  }, [event.name])
 
   useEffect(() => {
     // Initialize checked items and quantities
