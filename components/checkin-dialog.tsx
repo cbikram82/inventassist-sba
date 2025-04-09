@@ -139,11 +139,10 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const itemCategory = categories.find(c => c.name === item.item?.category)
         const isNonConsumable = !itemCategory || !itemCategory.is_consumable
 
-        // Only send reason if it's a non-consumable item and quantities don't match
-        const reason = isNonConsumable && returnQuantity !== item.actual_quantity ? {
-          code: reasonCodes[item.id],
-          description: reasons[item.id]
-        } : undefined
+        // Format reason as a string if needed
+        const reason = isNonConsumable && returnQuantity !== item.actual_quantity
+          ? `${reasonCodes[item.id]}: ${reasons[item.id]}`
+          : undefined
 
         const { error: updateError } = await supabase
           .from('checkout_items')
