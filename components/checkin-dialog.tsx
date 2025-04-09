@@ -35,6 +35,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
   const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
+  const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
 
   useEffect(() => {
     const initialQuantities: Record<string, number> = {}
@@ -50,6 +51,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     setReasonVisibility(initialVisibility)
     setReasons({})
     setReasonCodes({})
+    setForceUpdateCounter(0)
 
     const fetchCategories = async () => {
       const { data, error } = await supabase
@@ -80,28 +82,28 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     const newQuantity = parseInt(value)
     const numericNewQuantity = isNaN(newQuantity) ? (returnQuantities[itemId] ?? 0) : newQuantity
 
+    let shouldBeVisible = false
+    const item = items.find(i => i.id === itemId)
+    if (item) {
+      const itemCategory = categories.find(cat => cat.name === item.item?.category)
+      const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
+      const originalQuantity = Number(item.actual_quantity)
+      shouldBeVisible = !isConsumable && numericNewQuantity !== originalQuantity
+    } else {
+       console.warn(`Item with ID ${itemId} not found for visibility calculation.`)
+    }
+
     setReturnQuantities(prev => ({
       ...prev,
       [itemId]: numericNewQuantity
     }))
-
-    const item = items.find(i => i.id === itemId)
-    if (!item) {
-       console.warn(`Item with ID ${itemId} not found for visibility update.`)
-       setReasonVisibility(prev => ({ ...prev, [itemId]: false }))
-       return
-    }
-
-    const itemCategory = categories.find(cat => cat.name === item.item?.category)
-    const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-    const originalQuantity = Number(item.actual_quantity)
-    const shouldBeVisible = !isConsumable && numericNewQuantity !== originalQuantity
-    
     setReasonVisibility(prev => ({
       ...prev,
       [itemId]: shouldBeVisible
     }))
-    console.log(`[handleQuantityChange - ${item.item?.name}] Set Visibility to: ${shouldBeVisible}`)
+    setForceUpdateCounter(c => c + 1)
+
+    console.log(`[handleQuantityChange - ${item?.item?.name}] Set Visibility to: ${shouldBeVisible}, Force Cnt: ${forceUpdateCounter + 1}`)
   }
 
   const handleReasonChange = (itemId: string, value: string) => {
@@ -202,10 +204,12 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             const currentReturnQuantity = returnQuantities[item.id] ?? ''
             const visibleState = reasonVisibility[item.id] === true
 
+            const _forceUpdateRead = forceUpdateCounter
+
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg relative">
                 <div style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(255,255,0,0.7)', padding: '2px 4px', fontSize: '9px', lineHeight: '1.1', zIndex: 10 }}>
-                  DEBUG:<br />
+                  DEBUG (F{_forceUpdateRead}):<br />
                   isC: {isConsumable.toString()}<br />
                   retQ: {currentReturnQuantity}<br />
                   origQ: {item.actual_quantity}<br />
