@@ -95,10 +95,20 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           `)
           .eq('event_name', event.name)
 
-        if (eventItemsError) throw eventItemsError
+        if (eventItemsError) {
+          console.error('Error fetching event items:', eventItemsError)
+          setErrors([{ type: 'general', message: 'Failed to fetch event items' }])
+          return
+        }
+
+        if (!eventItems || eventItems.length === 0) {
+          console.log('No event items found for event:', event.name)
+          setItems([])
+          return
+        }
 
         // Transform the data to match our Item type
-        const items = (eventItems as unknown as EventItemData[] || []).map(ei => ({
+        const transformedItems = eventItems.map(ei => ({
           id: ei.item_id || '',
           name: ei.item_name || '',
           category: ei.item?.[0]?.category || '',
@@ -108,7 +118,7 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           updated_at: ei.item?.[0]?.updated_at || ei.updated_at || new Date().toISOString()
         }))
 
-        setItems(items)
+        setItems(transformedItems)
 
         // Fetch categories
         const { data: categoriesData, error: categoriesError } = await supabase
@@ -116,16 +126,23 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           .select('id, name, is_consumable')
           .order('name')
 
-        if (categoriesError) throw categoriesError
+        if (categoriesError) {
+          console.error('Error fetching categories:', categoriesError)
+          setErrors([{ type: 'general', message: 'Failed to fetch categories' }])
+          return
+        }
+
         setCategories(categoriesData || [])
       } catch (error) {
-        console.error('Error fetching data:', error)
-        setErrors([{ type: 'general', message: 'Failed to fetch data' }])
+        console.error('Error in fetchData:', error)
+        setErrors([{ type: 'general', message: 'An unexpected error occurred' }])
       }
     }
 
-    fetchData()
-  }, [event.name])
+    if (event?.name) {
+      fetchData()
+    }
+  }, [event?.name])
 
   useEffect(() => {
     // Initialize checked items and quantities
