@@ -36,7 +36,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const { toast } = useToast()
   const { user } = useUser()
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [error, setError] = useState<string | null>(null)
   const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
@@ -126,12 +126,12 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const handleCheckin = async () => {
     try {
       setLoading(true)
-      setErrors({})
+      setError(null)
 
       // Validate that at least one item is selected
       const selectedItems = items.filter(item => selectedItemsMap[item.id])
       if (selectedItems.length === 0) {
-        setErrors({ general: "Please select at least one item to check in" })
+        setError('Please select at least one item to check in')
         return
       }
 
@@ -141,98 +141,105 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
         const itemCategory = categories.find(c => c.name === item.item?.category)
         const isConsumable = itemCategory?.is_consumable === true
 
-        console.log('Validating item:', {
-          name: item.item?.name,
-          category: item.item?.category,
-          isConsumable,
-          returnQuantity,
-          actualQuantity: item.actual_quantity,
-          reasonCode: reasonCodes[item.id],
-          reason: reasons[item.id]
-        })
-
         if (!isConsumable) {
           // For non-consumable items, require exact return or valid reason
           if (returnQuantity !== item.actual_quantity) {
             if (!reasonCodes[item.id] || !reasons[item.id]) {
-              setErrors({ [item.id]: "Please provide a reason for this item as the return quantity doesn't match the checked out quantity" })
+              setError(`Please provide a reason for ${item.item?.name} as the return quantity doesn't match the checked out quantity`)
               return
             }
           }
         }
       }
 
-      // Process each item
-      for (const item of selectedItems) {
-        const returnQuantity = returnQuantities[item.id] || 0
-        const itemCategory = categories.find(c => c.name === item.item?.category)
-        const isConsumable = itemCategory?.is_consumable === true
+      // Start a transaction
+      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction')
+      if (transactionError) throw transactionError
 
-        // Format reason as a string if needed
-        let reason: string | undefined = undefined
-        if (!isConsumable && returnQuantity !== item.actual_quantity) {
-          const reasonCode = reasonCodes[item.id]
-          const reasonText = reasons[item.id]
-          if (reasonCode && reasonText) {
-            reason = `${reasonCode}: ${reasonText}`
+      try {
+        // Process each item within the transaction
+        for (const item of selectedItems) {
+          const returnQuantity = returnQuantities[item.id] || 0
+          const itemCategory = categories.find(c => c.name === item.item?.category)
+          const isConsumable = itemCategory?.is_consumable === true
+
+          // Format reason as a string if needed
+          let reason: string | undefined = undefined
+          if (!isConsumable && returnQuantity !== item.actual_quantity) {
+            const reasonCode = reasonCodes[item.id]
+            const reasonText = reasons[item.id]
+            if (reasonCode && reasonText) {
+              reason = `${reasonCode}: ${reasonText}`
+            }
           }
+
+          // Update checkout item status first
+          const { error: updateError } = await supabase
+            .from('checkout_items')
+            .update({
+              actual_quantity: returnQuantity,
+              status: 'checked_in',
+              checked_by: user?.id,
+              reason: reason
+            })
+            .eq('id', item.id)
+
+          if (updateError) throw updateError
+
+          // Get current item quantity
+          const { data: currentItem, error: itemError } = await supabase
+            .from('items')
+            .select('quantity')
+            .eq('id', item.item_id)
+            .single()
+
+          if (itemError) throw itemError
+
+          // Update item quantity
+          const { error: updateQuantityError } = await supabase
+            .from('items')
+            .update({
+              quantity: (currentItem?.quantity || 0) + returnQuantity
+            })
+            .eq('id', item.item_id)
+
+          if (updateQuantityError) throw updateQuantityError
+
+          // Create audit log
+          const { error: auditError } = await supabase
+            .from('audit_logs')
+            .insert({
+              item_id: item.item_id,
+              action: 'checkin',
+              quantity_change: returnQuantity,
+              user_id: user?.id,
+              checkout_task_id: item.checkout_task_id,
+              reason: reason
+            })
+
+          if (auditError) throw auditError
         }
 
-        // Update checkout item status first
-        const { error: updateError } = await supabase
-          .from('checkout_items')
-          .update({
-            actual_quantity: returnQuantity,
-            status: 'checked_in',
-            checked_by: user?.id,
-            reason: reason
-          })
-          .eq('id', item.id)
+        // Commit the transaction if all operations succeed
+        const { error: commitError } = await supabase.rpc('commit_transaction')
+        if (commitError) throw commitError
 
-        if (updateError) throw updateError
-
-        // Get current item quantity
-        const { data: currentItem, error: itemError } = await supabase
-          .from('items')
-          .select('quantity')
-          .eq('id', item.item_id)
-          .single()
-
-        if (itemError) throw itemError
-
-        // Update item quantity
-        const { error: updateQuantityError } = await supabase
-          .from('items')
-          .update({
-            quantity: (currentItem?.quantity || 0) + returnQuantity
-          })
-          .eq('id', item.item_id)
-
-        if (updateQuantityError) throw updateQuantityError
-
-        // Create audit log
-        const { error: auditError } = await supabase
-          .from('audit_logs')
-          .insert({
-            item_id: item.item_id,
-            action: 'checkin',
-            quantity_change: returnQuantity,
-            user_id: user?.id,
-            checkout_task_id: item.checkout_task_id,
-            reason: reason
-          })
-
-        if (auditError) throw auditError
+        toast({
+          title: "Success",
+          description: "Items checked in successfully",
+        })
+        onComplete()
+      } catch (error) {
+        // Rollback the transaction if any operation fails
+        const { error: rollbackError } = await supabase.rpc('rollback_transaction')
+        if (rollbackError) {
+          console.error('Error rolling back transaction:', rollbackError)
+        }
+        throw error
       }
-
-      toast({
-        title: "Success",
-        description: "Items checked in successfully",
-      })
-      onComplete()
     } catch (error) {
       console.error('Error checking in items:', error)
-      setErrors({ general: "Failed to check in items. Please try again." })
+      setError('Failed to check in items. Please try again.')
     } finally {
       setLoading(false)
     }
