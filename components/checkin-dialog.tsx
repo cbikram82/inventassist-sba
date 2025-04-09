@@ -232,6 +232,16 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             const isNonConsumable = !itemCategory || !itemCategory.is_consumable
             const requiresReason = isNonConsumable && returnQuantity !== item.actual_quantity
 
+            console.log('Item details:', {
+              name: item.item?.name,
+              category: item.item?.category,
+              isNonConsumable,
+              returnQuantity,
+              actualQuantity: item.actual_quantity,
+              requiresReason,
+              itemCategory
+            })
+
             return (
               <div key={item.id} className="space-y-2 p-4 border rounded-lg">
                 <div className="flex justify-between items-center">
@@ -253,7 +263,18 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                     min="0"
                     max={item.actual_quantity}
                     value={returnQuantity}
-                    onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value))}
+                    onChange={(e) => {
+                      const newValue = parseInt(e.target.value)
+                      handleQuantityChange(item.id, newValue)
+                      // Log when quantity changes
+                      console.log('Quantity changed:', {
+                        itemId: item.id,
+                        newValue,
+                        actualQuantity: item.actual_quantity,
+                        isNonConsumable,
+                        requiresReason: isNonConsumable && newValue !== item.actual_quantity
+                      })
+                    }}
                     className="w-24"
                   />
                   <span className="text-sm text-gray-500">of {item.actual_quantity}</span>
