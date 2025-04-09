@@ -41,7 +41,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
-  const [forceUpdate, setForceUpdate] = useState(0)
+  const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -68,20 +68,42 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
       fetchCategories()
       // Initialize return quantities with actual quantities
       const initialQuantities: Record<string, number> = {}
+      const initialVisibility: Record<string, boolean> = {}
       items.forEach(item => {
         initialQuantities[item.id] = item.actual_quantity
+        initialVisibility[item.id] = false
       })
       setReturnQuantities(initialQuantities)
+      setReasonVisibility(initialVisibility)
     }
   }, [isOpen, items, toast])
 
   const handleQuantityChange = (itemId: string, value: number) => {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+
+    const itemCategory = categories.find(c => c.name === item.item?.category)
+    const isNonConsumable = !itemCategory || !itemCategory.is_consumable
+    const hasQuantityMismatch = value !== item.actual_quantity
+
     setReturnQuantities(prev => ({
       ...prev,
       [itemId]: value
     }))
-    // Force a re-render
-    setForceUpdate(prev => prev + 1)
+
+    setReasonVisibility(prev => ({
+      ...prev,
+      [itemId]: isNonConsumable && hasQuantityMismatch
+    }))
+
+    console.log('Quantity changed:', {
+      itemId,
+      value,
+      actualQuantity: item.actual_quantity,
+      isNonConsumable,
+      hasQuantityMismatch,
+      showReason: isNonConsumable && hasQuantityMismatch
+    })
   }
 
   const handleReasonChange = (itemId: string, value: string) => {
@@ -219,16 +241,15 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
             const returnQuantity = returnQuantities[item.id] || 0
             const itemCategory = categories.find(c => c.name === item.item?.category)
             const isNonConsumable = !itemCategory || !itemCategory.is_consumable
-            const requiresReason = isNonConsumable && returnQuantity !== item.actual_quantity
+            const showReason = reasonVisibility[item.id] || false
 
-            console.log('Item details:', {
+            console.log('Rendering item:', {
               name: item.item?.name,
               category: item.item?.category,
               isNonConsumable,
               returnQuantity,
               actualQuantity: item.actual_quantity,
-              requiresReason,
-              itemCategory
+              showReason
             })
 
             return (
@@ -261,7 +282,7 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
                   <span className="text-sm text-gray-500">of {item.actual_quantity}</span>
                 </div>
 
-                {requiresReason && (
+                {showReason && (
                   <div className="space-y-2 mt-2">
                     <select
                       value={reasonCodes[item.id] || ''}
