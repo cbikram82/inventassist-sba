@@ -47,6 +47,10 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   const [reasons, setReasons] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    console.log('Event object:', event);
+  }, [event]);
+
+  useEffect(() => {
     const fetchData = async () => {
       try {
         // Fetch items
@@ -227,7 +231,9 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Check Out Items for {event.name}</DialogTitle>
+          <DialogTitle>
+            {event?.name ? `Check Out Items for ${event.name}` : 'Check Out Items'}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {items.map((item) => (
