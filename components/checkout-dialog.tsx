@@ -104,66 +104,84 @@ export function CheckoutDialog({
         }
       }
 
-      // Create checkout task
-      const { data: task, error: taskError } = await supabase
-        .from('checkout_tasks')
-        .insert({
-          event_id: taskId,
-          status: 'in_progress',
-          created_by: user?.id
-        })
-        .select()
-        .single();
+      // Start a transaction
+      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction');
+      if (transactionError) throw transactionError;
 
-      if (taskError) throw taskError;
-
-      // Process each item
-      for (const item of selectedItems) {
-        const quantity = quantities[item.id] || 0;
-
-        // Create checkout item
-        const { error: itemError } = await supabase
-          .from('checkout_items')
+      try {
+        // Create checkout task
+        const { data: task, error: taskError } = await supabase
+          .from('checkout_tasks')
           .insert({
-            checkout_task_id: task.id,
-            item_id: item.id,
-            original_quantity: quantity,
-            actual_quantity: quantity,
-            status: 'checked_out',
-            checked_by: user?.id
-          });
-
-        if (itemError) throw itemError;
-
-        // Update item quantity
-        const { error: updateError } = await supabase
-          .from('items')
-          .update({
-            quantity: item.original_quantity - quantity
+            event_id: taskId,
+            status: 'in_progress',
+            type: 'checkout',
+            created_by: user?.id
           })
-          .eq('id', item.id);
+          .select()
+          .single();
 
-        if (updateError) throw updateError;
+        if (taskError) throw taskError;
 
-        // Create audit log
-        const { error: auditError } = await supabase
-          .from('audit_logs')
-          .insert({
-            item_id: item.id,
-            action: 'checkout',
-            quantity_change: -quantity,
-            user_id: user?.id,
-            checkout_task_id: task.id
-          });
+        // Process each item within the transaction
+        for (const item of selectedItems) {
+          const quantity = quantities[item.id] || 0;
 
-        if (auditError) throw auditError;
+          // Create checkout item
+          const { error: itemError } = await supabase
+            .from('checkout_items')
+            .insert({
+              checkout_task_id: task.id,
+              item_id: item.id,
+              original_quantity: quantity,
+              actual_quantity: quantity,
+              status: 'checked_out',
+              checked_by: user?.id
+            });
+
+          if (itemError) throw itemError;
+
+          // Update item quantity
+          const { error: updateError } = await supabase
+            .from('items')
+            .update({
+              quantity: item.original_quantity - quantity
+            })
+            .eq('id', item.id);
+
+          if (updateError) throw updateError;
+
+          // Create audit log
+          const { error: auditError } = await supabase
+            .from('audit_logs')
+            .insert({
+              item_id: item.id,
+              action: 'checkout',
+              quantity_change: -quantity,
+              user_id: user?.id,
+              checkout_task_id: task.id
+            });
+
+          if (auditError) throw auditError;
+        }
+
+        // Commit the transaction if all operations succeed
+        const { error: commitError } = await supabase.rpc('commit_transaction');
+        if (commitError) throw commitError;
+
+        toast({
+          title: "Success",
+          description: "Items checked out successfully",
+        });
+        onComplete();
+      } catch (error) {
+        // Rollback the transaction if any operation fails
+        const { error: rollbackError } = await supabase.rpc('rollback_transaction');
+        if (rollbackError) {
+          console.error('Error rolling back transaction:', rollbackError);
+        }
+        throw error;
       }
-
-      toast({
-        title: "Success",
-        description: "Items checked out successfully",
-      });
-      onComplete();
     } catch (error) {
       console.error('Error checking out items:', error);
       setErrors([{ type: 'general', message: "Failed to check out items. Please try again." }]);
