@@ -1,7 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,6 +42,8 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
   const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
   const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
   useEffect(() => {
     const initialQuantities: Record<string, number> = {}
@@ -78,32 +86,12 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
     }
   }, [isOpen, items, toast])
 
-  const handleQuantityChange = (itemId: string, value: string) => {
-    const newQuantity = parseInt(value)
-    const numericNewQuantity = isNaN(newQuantity) ? (returnQuantities[itemId] ?? 0) : newQuantity
-
-    let shouldBeVisible = false
-    const item = items.find(i => i.id === itemId)
-    if (item) {
-      const itemCategory = categories.find(cat => cat.name === item.item?.category)
-      const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-      const originalQuantity = Number(item.actual_quantity)
-      shouldBeVisible = !isConsumable && numericNewQuantity !== originalQuantity
-    } else {
-       console.warn(`Item with ID ${itemId} not found for visibility calculation.`)
-    }
-
+  const handleQuantityChange = (itemId: string, value: number) => {
     setReturnQuantities(prev => ({
       ...prev,
-      [itemId]: numericNewQuantity
-    }))
-    setReasonVisibility(prev => ({
-      ...prev,
-      [itemId]: shouldBeVisible
+      [itemId]: value
     }))
     setForceUpdateCounter(c => c + 1)
-
-    console.log(`[handleQuantityChange - ${item?.item?.name}] Set Visibility to: ${shouldBeVisible}, Force Cnt: ${forceUpdateCounter + 1}`)
   }
 
   const handleReasonChange = (itemId: string, value: string) => {
@@ -122,169 +110,190 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
 
   const handleCheckin = async () => {
     try {
-      setIsSubmitting(true)
+      setLoading(true)
+      const errors: { [key: string]: string } = {}
 
-      // --- Combined Validation and Submission Loop ---
+      if (!user?.id) {
+        throw new Error('User ID is required for check-in')
+      }
+
+      // Validate all items
       for (const item of items) {
-        const returnQuantity = returnQuantities[item.id] ?? 0;
-        const originalQuantity = Number(item.actual_quantity);
-        const itemCategory = categories.find(cat => cat.name === item.item?.category);
-        const isConsumable = itemCategory ? itemCategory.is_consumable === true : false;
+        const returnQuantity = returnQuantities[item.id] || 0
+        const itemCategory = categories.find(c => c.name === item.item?.category)
+        const isNonConsumable = !itemCategory || !itemCategory.is_consumable
 
-        // 1. Basic quantity validation
-        if (returnQuantity < 0) {
-          throw new Error(`Return quantity cannot be negative for ${item.item?.name}`);
-        }
-        if (returnQuantity > originalQuantity) {
-          throw new Error(`Return quantity cannot exceed checked out quantity (${originalQuantity}) for ${item.item?.name}`);
-        }
+        console.log('Validating item:', {
+          name: item.item?.name,
+          category: item.item?.category,
+          isConsumable: !isNonConsumable,
+          returnQuantity,
+          actualQuantity: item.actual_quantity
+        })
 
-        // 2. Determine if reason is needed based on current values
-        const reasonIsNeeded = !isConsumable && returnQuantity !== originalQuantity;
-        let reasonToSend: string | undefined = undefined;
-        
-        // 3. Check if reason is needed and if UI *should* have shown the fields
-        if (reasonIsNeeded) {
-          const shouldUIVisible = reasonVisibility[item.id] === true;
-          const currentReasonCode = reasonCodes[item.id];
-          const currentReasonDesc = reasons[item.id]?.trim();
-
-          console.log(`[Submit Check - ${item.item?.name}] Reason Needed: ${reasonIsNeeded}, UI Should Be Visible State: ${shouldUIVisible}, Code Provided: ${!!currentReasonCode}, Desc Provided: ${!!currentReasonDesc}`);
-
-          if (!shouldUIVisible) {
-             console.error(`[Submit Check - ${item.item?.name}] Internal State Error: Reason required but reasonVisibility state was false. Qty: ${returnQuantity}/${originalQuantity}, isConsumable: ${isConsumable}`);
-             throw new Error(`Internal state error for ${item.item?.name}. Please refresh and try again.`);
+        if (isNonConsumable && returnQuantity !== item.actual_quantity) {
+          if (!reasonCodes[item.id] || !reasons[item.id]) {
+            errors[item.id] = "Reason code and description are required for non-consumable items when quantities don't match"
           }
-          
-          if (!currentReasonCode || !currentReasonDesc) {
-               console.error(`[Submit Check - ${item.item?.name}] Client Input Error: Reason required and UI visible, but input missing.`);
-               throw new Error(`Reason required for ${item.item?.name} but not provided. Please fill in the reason details.`);
-           }
-           
-           reasonToSend = `${currentReasonCode}: ${currentReasonDesc}`;
-        }
-        
-        console.log(`  => Reason to Send:`, reasonToSend);
-
-        if (!user?.id) {
-          throw new Error('User ID is required for check-in');
-        }
-
-        // 4. Call the backend action
-        const { error } = await updateCheckoutItem(item.id, returnQuantity, 'checked_in', user.id, reasonToSend);
-        if (error) {
-          console.error(`Backend Error for ${item.item?.name}:`, error);
-          throw error; 
         }
       }
-      onComplete();
-      onClose();
-    } catch (error) { 
-      console.error('Error during check-in process:', error);
+
+      if (Object.keys(errors).length > 0) {
+        setErrors(errors)
+        return
+      }
+
+      // Process each item
+      for (const item of items) {
+        const returnQuantity = returnQuantities[item.id] || 0
+        const itemCategory = categories.find(c => c.name === item.item?.category)
+        const isNonConsumable = !itemCategory || !itemCategory.is_consumable
+
+        // Only send reason if it's a non-consumable item and quantities don't match
+        const reason = isNonConsumable && returnQuantity !== item.actual_quantity ? {
+          code: reasonCodes[item.id],
+          description: reasons[item.id]
+        } : undefined
+
+        const { error: updateError } = await supabase
+          .from('checkout_items')
+          .update({
+            actual_quantity: returnQuantity,
+            status: 'checked_in',
+            checked_by: user.id,
+            reason: reason
+          })
+          .eq('id', item.id)
+
+        if (updateError) throw updateError
+
+        // Get current item quantity
+        const { data: currentItem, error: itemError } = await supabase
+          .from('items')
+          .select('quantity')
+          .eq('id', item.item_id)
+          .single()
+
+        if (itemError) throw itemError
+
+        // Update item quantity
+        const { error: updateQuantityError } = await supabase
+          .from('items')
+          .update({
+            quantity: (currentItem?.quantity || 0) + returnQuantity
+          })
+          .eq('id', item.item_id)
+
+        if (updateQuantityError) throw updateQuantityError
+
+        // Create audit log
+        const { error: auditError } = await supabase
+          .from('audit_logs')
+          .insert({
+            item_id: item.item_id,
+            action: 'checkin',
+            quantity: returnQuantity,
+            user_id: user.id,
+            checkout_task_id: item.checkout_task_id,
+            checkout_item_id: item.id,
+            reason: reason
+          })
+
+        if (auditError) throw auditError
+      }
+
       toast({
-        title: "Check-in Error",
-        description: error instanceof Error ? error.message : "Failed to check in items",
+        title: "Success",
+        description: "Items checked in successfully",
+      })
+      onComplete()
+    } catch (error) {
+      console.error('Error checking in items:', error)
+      toast({
+        title: "Error",
+        description: "Failed to check in items",
         variant: "destructive",
-      });
+      })
     } finally {
-      setIsSubmitting(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Check In Items</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {items.map((item) => {
-            const itemCategory = categories.find(cat => cat.name === item.item?.category)
-            const isConsumable = itemCategory ? itemCategory.is_consumable === true : false
-            const currentReturnQuantity = returnQuantities[item.id] ?? ''
-            const visibleState = reasonVisibility[item.id] === true
-
-            const _forceUpdateRead = forceUpdateCounter
+            const returnQuantity = returnQuantities[item.id] || 0
+            const itemCategory = categories.find(c => c.name === item.item?.category)
+            const isNonConsumable = !itemCategory || !itemCategory.is_consumable
+            const requiresReason = isNonConsumable && returnQuantity !== item.actual_quantity
 
             return (
-              <div key={item.id} className="space-y-2 p-4 border rounded-lg relative">
-                <div style={{ position: 'absolute', top: 0, right: 0, background: 'rgba(255,255,0,0.7)', padding: '2px 4px', fontSize: '9px', lineHeight: '1.1', zIndex: 10 }}>
-                  DEBUG (F{_forceUpdateRead}):<br />
-                  isC: {isConsumable.toString()}<br />
-                  retQ: {currentReturnQuantity}<br />
-                  origQ: {item.actual_quantity}<br />
-                  visState: {visibleState.toString()}
-                </div>
+              <div key={item.id} className="space-y-2 p-4 border rounded-lg">
                 <div className="flex justify-between items-center">
                   <div>
                     <h4 className="font-medium">{item.item?.name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Checked out: {item.actual_quantity}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-gray-500">
                       Category: {item.item?.category}
+                      {isNonConsumable && " (Non-Consumable)"}
                     </p>
-                    {!isConsumable && (
-                      <p className="text-sm text-yellow-600">
-                        Note: You must return the exact quantity checked out unless items are damaged or lost
-                      </p>
-                    )}
                   </div>
-                  <div className="w-32">
-                    <Label>Return Quantity</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max={item.actual_quantity}
-                      value={currentReturnQuantity}
-                      onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                    />
+                  <div className="text-sm text-gray-500">
+                    Checked Out: {item.actual_quantity}
                   </div>
                 </div>
+                
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max={item.actual_quantity}
+                    value={returnQuantity}
+                    onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value))}
+                    className="w-24"
+                  />
+                  <span className="text-sm text-gray-500">of {item.actual_quantity}</span>
+                </div>
 
-                {visibleState && (
-                  <div className="space-y-2 border-t pt-2 mt-2 border-dashed">
-                    <div>
-                      <Label>Reason Code</Label>
-                      <Select
-                        value={reasonCodes[item.id]}
-                        onValueChange={(value) => handleReasonCodeChange(item.id, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {REASON_CODES.map(code => (
-                            <SelectItem key={code.id} value={code.id}>
-                              {code.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Reason Description</Label>
-                      <Textarea
-                        value={reasons[item.id] || ""}
-                        onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                        placeholder="Please provide details about why the quantity is less"
-                      />
-                    </div>
+                {requiresReason && (
+                  <div className="space-y-2">
+                    <select
+                      value={reasonCodes[item.id] || ''}
+                      onChange={(e) => setReasonCodes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Select a reason</option>
+                      <option value="damaged">Damaged</option>
+                      <option value="lost">Lost</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <Input
+                      placeholder="Reason description"
+                      value={reasons[item.id] || ''}
+                      onChange={(e) => setReasons(prev => ({ ...prev, [item.id]: e.target.value }))}
+                    />
                   </div>
+                )}
+
+                {errors[item.id] && (
+                  <p className="text-sm text-red-500">{errors[item.id]}</p>
                 )}
               </div>
             )
           })}
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleCheckin} disabled={isSubmitting}>
-              {isSubmitting ? "Checking In..." : "Check In"}
-            </Button>
-          </div>
         </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleCheckin} disabled={loading}>
+            {loading ? "Checking In..." : "Check In"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

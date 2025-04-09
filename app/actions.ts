@@ -297,15 +297,26 @@ export async function updateCheckoutItem(
       .single();
 
     if (categoryError && categoryError.code !== 'PGRST116') {
-      throw new Error(`Error fetching category: ${categoryError.message}`);
+      console.error('Error fetching category:', categoryError);
+      // Don't throw error, just log it and treat as non-consumable
     }
 
     // If category is not found or is_consumable is false, treat as non-consumable
     const isNonConsumable = !category || !category.is_consumable;
     const isCheckin = status === 'checked_in';
+    const hasQuantityMismatch = actualQuantity !== checkoutItem.actual_quantity;
 
-    if (isNonConsumable && isCheckin && actualQuantity !== checkoutItem.actual_quantity && !reason) {
-      throw new Error('Reason is required for non-consumable items with quantity mismatch');
+    console.log('Category check:', {
+      categoryName: checkoutItem.item.category,
+      isConsumable: category?.is_consumable,
+      isNonConsumable,
+      isCheckin,
+      hasQuantityMismatch,
+      reasonProvided: !!reason
+    });
+
+    if (isNonConsumable && isCheckin && hasQuantityMismatch && !reason) {
+      throw new Error(`Reason is required for ${checkoutItem.item.category} items when returning a different quantity`);
     }
 
     // Get current item quantity
@@ -374,10 +385,10 @@ export async function updateCheckoutItem(
     }
 
     console.log('Successfully updated checkout item:', data);
-    return data;
+    return { data, error: null };
   } catch (error) {
     console.error('Error in updateCheckoutItem:', error);
-    throw error;
+    return { data: null, error: error instanceof Error ? error.message : 'Failed to update checkout item' };
   }
 }
 
