@@ -43,7 +43,7 @@ interface EventItemData {
   quantity: number
   created_at: string
   updated_at: string
-  item?: {
+  item: {
     id: string
     name: string
     category: string
@@ -51,7 +51,7 @@ interface EventItemData {
     description: string
     created_at: string
     updated_at: string
-  }
+  }[]
 }
 
 export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutDialogProps) {
@@ -98,15 +98,15 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
         if (eventItemsError) throw eventItemsError
 
         // Transform the data to match our Item type
-        const items = (eventItems as unknown as EventItemData[])?.map(ei => ({
-          id: ei.item_id,
-          name: ei.item_name,
-          category: ei.item?.category || '',
-          quantity: ei.quantity,
-          description: ei.item?.description || '',
-          created_at: ei.item?.created_at || ei.created_at,
-          updated_at: ei.item?.updated_at || ei.updated_at
-        })) || []
+        const items = (eventItems as unknown as EventItemData[] || []).map(ei => ({
+          id: ei.item_id || '',
+          name: ei.item_name || '',
+          category: ei.item?.[0]?.category || '',
+          quantity: ei.quantity || 0,
+          description: ei.item?.[0]?.description || '',
+          created_at: ei.item?.[0]?.created_at || ei.created_at || new Date().toISOString(),
+          updated_at: ei.item?.[0]?.updated_at || ei.updated_at || new Date().toISOString()
+        }))
 
         setItems(items)
 
