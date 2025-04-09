@@ -556,7 +556,7 @@ export default function EventItemsPage() {
           </CardContent>
         </Card>
 
-        {currentCheckoutTask && (
+        {currentCheckoutTask && currentCheckoutTask.type === 'checkout' && (
           <CheckoutDialog
             isOpen={isCheckoutDialogOpen}
             onClose={() => {
@@ -565,7 +565,19 @@ export default function EventItemsPage() {
             }}
             taskId={currentCheckoutTask.id}
             items={currentCheckoutTask.items}
-            type={currentCheckoutTask.type}
+            type="checkout"
+            onComplete={handleCheckoutComplete}
+          />
+        )}
+
+        {currentCheckoutTask && currentCheckoutTask.type === 'checkin' && (
+          <CheckinDialog
+            isOpen={isCheckoutDialogOpen}
+            onClose={() => {
+              setIsCheckoutDialogOpen(false);
+              setCurrentCheckoutTask(null);
+            }}
+            items={currentCheckoutTask.items}
             onComplete={handleCheckoutComplete}
           />
         )}
