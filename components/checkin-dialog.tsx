@@ -222,10 +222,9 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
           .insert({
             item_id: item.item_id,
             action: 'checkin',
-            quantity: returnQuantity,
+            quantity_change: returnQuantity,
             user_id: user.id,
             checkout_task_id: item.checkout_task_id,
-            checkout_item_id: item.id,
             reason: reason
           })
 
