@@ -173,6 +173,7 @@ export function CheckoutDialog({
         .insert({
           event_id: event?.id,
           status: 'pending',
+          type: type,
           created_by: user.id
         })
         .select()
