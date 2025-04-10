@@ -172,7 +172,7 @@ export function CheckoutDialog({
         .from('checkout_tasks')
         .insert({
           event_id: event?.id,
-          status: 'pending',
+          status: 'in_progress',
           type: type,
           created_by: user.id
         })
@@ -209,7 +209,7 @@ export function CheckoutDialog({
 
         if (updateQuantityError) throw updateQuantityError;
 
-        // Create checkout item
+        // Create checkout item with checked status
         const { error: checkoutItemError } = await supabase
           .from('checkout_items')
           .insert({
@@ -217,7 +217,9 @@ export function CheckoutDialog({
             item_id: item.item_id,
             original_quantity: item.original_quantity,
             actual_quantity: checkoutQuantity,
-            status: 'checked'
+            status: 'checked',
+            checked_by: user.id,
+            checked_at: new Date().toISOString()
           });
 
         if (checkoutItemError) throw checkoutItemError;
@@ -239,7 +241,10 @@ export function CheckoutDialog({
       // Update task status to completed
       const { error: updateTaskError } = await supabase
         .from('checkout_tasks')
-        .update({ status: 'completed' })
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
         .eq('id', task.id);
 
       if (updateTaskError) throw updateTaskError;
