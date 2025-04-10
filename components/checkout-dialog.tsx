@@ -277,12 +277,12 @@ export function CheckoutDialog({
                   className="h-4 w-4"
                 />
                 <div className="flex-1">
-                  <h4 className="font-medium">{item.name}</h4>
+                  <h4 className="font-medium">{item.name || item.item?.name}</h4>
                   <p className="text-sm text-gray-500">
-                    Category: {item.category}
-                    {!categories.find(c => c.name === item.category)?.is_consumable && " (Non-Consumable)"}
+                    Category: {item.category || item.item?.category}
+                    {!categories.find(c => c.name === (item.category || item.item?.category))?.is_consumable && " (Non-Consumable)"}
                   </p>
-                  <p className="text-sm text-gray-500">Available: {item.quantity}</p>
+                  <p className="text-sm text-gray-500">Available: {item.quantity || item.actual_quantity}</p>
                 </div>
               </div>
               
@@ -291,7 +291,7 @@ export function CheckoutDialog({
                   <Input
                     type="number"
                     min="0"
-                    max={item.quantity}
+                    max={item.quantity || item.actual_quantity}
                     value={quantities[item.id] || 0}
                     onChange={(e) => {
                       const newValue = parseInt(e.target.value)
@@ -299,7 +299,7 @@ export function CheckoutDialog({
                     }}
                     className="w-24"
                   />
-                  <span className="text-sm text-gray-500">of {item.quantity}</span>
+                  <span className="text-sm text-gray-500">of {item.quantity || item.actual_quantity}</span>
                 </div>
               )}
               
