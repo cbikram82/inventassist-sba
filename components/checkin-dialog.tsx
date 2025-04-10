@@ -25,7 +25,6 @@ interface CheckinDialogProps {
   onClose: () => void
   items: CheckoutItemWithDetails[]
   onComplete: () => void
-  user: User | null
   taskId: string
 }
 
@@ -40,11 +39,10 @@ export function CheckinDialog({
   onClose,
   items: initialItems = [],
   onComplete,
-  user,
   taskId
 }: CheckinDialogProps) {
   const { toast } = useToast()
-  const { user: currentUser } = useUser()
+  const { user } = useUser()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({})
