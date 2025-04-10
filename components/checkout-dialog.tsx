@@ -67,6 +67,11 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!event?.name) {
+        console.log('No event name provided, skipping fetch');
+        return;
+      }
+
       try {
         // Fetch event items
         const { data: eventItems, error: eventItemsError } = await supabase
@@ -121,8 +126,10 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
       }
     }
 
-    fetchData()
-  }, [event.name])
+    if (isOpen) {
+      fetchData()
+    }
+  }, [isOpen, event?.name])
 
   useEffect(() => {
     // Initialize checked items and quantities
