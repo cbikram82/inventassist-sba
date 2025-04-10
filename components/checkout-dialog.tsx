@@ -172,7 +172,7 @@ export function CheckoutDialog({
         .from('checkout_tasks')
         .insert({
           event_id: event?.id,
-          status: 'in_progress',
+          status: 'pending',
           type: type,
           created_by: user.id
         })
@@ -209,17 +209,6 @@ export function CheckoutDialog({
 
         if (updateQuantityError) throw updateQuantityError;
 
-        // Update event item status
-        const { error: updateEventItemError } = await supabase
-          .from('event_items')
-          .update({
-            status: 'checked_out',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', item.event_item_id);
-
-        if (updateEventItemError) throw updateEventItemError;
-
         // Create checkout item with checked status
         const { error: checkoutItemError } = await supabase
           .from('checkout_items')
@@ -249,20 +238,6 @@ export function CheckoutDialog({
           });
 
         if (itemAuditError) throw itemAuditError;
-
-        // Create audit log for event item status change
-        const { error: eventItemAuditError } = await supabase
-          .from('audit_logs')
-          .insert({
-            user_id: user.id,
-            action: 'status_change',
-            item_id: item.item_id,
-            checkout_task_id: task.id,
-            event_item_id: item.event_item_id,
-            reason: 'Event item checked out'
-          });
-
-        if (eventItemAuditError) throw eventItemAuditError;
       }
 
       // Update task status to completed
