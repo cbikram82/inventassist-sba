@@ -186,35 +186,71 @@ export function CheckoutDialog({
 
       console.log('Checkout task created:', task);
 
-      // Create checkout items
-      const checkoutItems = selectedItems.map(item => ({
-        checkout_task_id: task.id,
-        item_id: item.item_id,
-        original_quantity: item.original_quantity,
-        actual_quantity: quantities[item.id] || item.actual_quantity,
-        status: 'pending'
-      }));
+      // Start a transaction
+      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction');
+      if (transactionError) throw transactionError;
 
-      console.log('Creating checkout items:', checkoutItems);
+      try {
+        // Process each item
+        for (const item of selectedItems) {
+          const checkoutQuantity = quantities[item.id] || item.actual_quantity;
 
-      const { error: itemsError } = await supabase
-        .from('checkout_items')
-        .insert(checkoutItems);
+          // Update item quantity
+          const { error: updateQuantityError } = await supabase
+            .from('items')
+            .update({
+              quantity: item.item?.quantity - checkoutQuantity
+            })
+            .eq('id', item.item_id);
 
-      if (itemsError) {
-        console.error('Error creating checkout items:', itemsError);
-        throw itemsError;
+          if (updateQuantityError) throw updateQuantityError;
+
+          // Create checkout item
+          const { error: checkoutItemError } = await supabase
+            .from('checkout_items')
+            .insert({
+              checkout_task_id: task.id,
+              item_id: item.item_id,
+              original_quantity: item.original_quantity,
+              actual_quantity: checkoutQuantity,
+              status: 'checked'
+            });
+
+          if (checkoutItemError) throw checkoutItemError;
+
+          // Create audit log
+          const { error: auditError } = await supabase
+            .from('audit_logs')
+            .insert({
+              user_id: user.id,
+              action: 'checkout',
+              item_id: item.item_id,
+              checkout_task_id: task.id,
+              quantity_change: -checkoutQuantity
+            });
+
+          if (auditError) throw auditError;
+        }
+
+        // Commit the transaction
+        const { error: commitError } = await supabase.rpc('commit_transaction');
+        if (commitError) throw commitError;
+
+        toast({
+          title: 'Success',
+          description: 'Items checked out successfully'
+        });
+
+        onComplete();
+        onClose();
+      } catch (error) {
+        // Rollback the transaction if any operation fails
+        const { error: rollbackError } = await supabase.rpc('rollback_transaction');
+        if (rollbackError) {
+          console.error('Error rolling back transaction:', rollbackError);
+        }
+        throw error;
       }
-
-      console.log('Checkout items created successfully');
-
-      toast({
-        title: 'Success',
-        description: 'Items checked out successfully'
-      });
-
-      onComplete();
-      onClose();
     } catch (error) {
       console.error('Error during checkout:', error);
       setErrors([{ type: 'general', message: 'Failed to process checkout' }]);
