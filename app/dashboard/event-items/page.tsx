@@ -580,6 +580,7 @@ export default function EventItemsPage() {
             }}
             items={currentCheckoutTask.items}
             onComplete={handleCheckoutComplete}
+            taskId={currentCheckoutTask.id}
           />
         )}
 
@@ -592,6 +593,7 @@ export default function EventItemsPage() {
             }}
             items={currentCheckinItems}
             onComplete={handleCheckinComplete}
+            taskId={currentCheckinItems[0]?.checkout_task_id}
           />
         )}
 
