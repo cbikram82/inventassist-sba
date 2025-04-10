@@ -15,15 +15,39 @@ import { DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
 import { Item } from '@/types/item';
+import { User } from '@supabase/supabase-js';
+
+interface CheckoutItem extends Item {
+  checkout_task_id?: string;
+  item_id?: string;
+  item?: {
+    name: string;
+    category: string;
+    quantity: number;
+    description: string;
+    created_at: string;
+    updated_at: string;
+  };
+  original_quantity: number;
+  actual_quantity: number;
+  status: string;
+  checked_by?: string;
+  checked_at?: string;
+  reason?: string;
+}
 
 interface CheckoutDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  event: {
+  event?: {
     id: string;
     name: string;
   };
+  taskId?: string;
+  items?: CheckoutItem[];
+  type?: 'checkout' | 'checkin';
   onComplete: () => void;
+  user: User | null;
 }
 
 type CheckoutError = {
@@ -54,95 +78,101 @@ interface EventItemData {
   }[]
 }
 
-export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutDialogProps) {
+export function CheckoutDialog({
+  isOpen,
+  onClose,
+  event,
+  taskId,
+  items: initialItems = [],
+  type = 'checkout',
+  onComplete,
+  user
+}: CheckoutDialogProps) {
   const { toast } = useToast();
-  const { user } = useUser();
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<CheckoutError[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
-  const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([]);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [errors, setErrors] = useState<Array<{ type: 'general' | 'item'; itemId?: string; message: string }>>([]);
   const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({});
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([]);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [dialogItems, setDialogItems] = useState<CheckoutItem[]>(initialItems);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!event?.name) {
-        console.log('No event name provided, skipping fetch');
-        return;
-      }
-
-      try {
-        // Fetch event items
-        const { data: eventItems, error: eventItemsError } = await supabase
-          .from('event_items')
-          .select(`
-            id,
-            event_name,
-            item_id,
-            item_name,
-            quantity,
-            created_at,
-            updated_at,
-            item:items (
-              id,
-              name,
-              category,
-              quantity,
-              description,
-              created_at,
-              updated_at
-            )
-          `)
-          .eq('event_name', event.name)
-
-        if (eventItemsError) throw eventItemsError
-
-        // Transform the data to match our Item type
-        const items = (eventItems as unknown as EventItemData[] || []).map(ei => ({
-          id: ei.item_id || '',
-          name: ei.item_name || '',
-          category: ei.item?.[0]?.category || '',
-          quantity: ei.quantity || 0,
-          description: ei.item?.[0]?.description || '',
-          created_at: ei.item?.[0]?.created_at || ei.created_at || new Date().toISOString(),
-          updated_at: ei.item?.[0]?.updated_at || ei.updated_at || new Date().toISOString()
-        }))
-
-        setItems(items)
-
-        // Fetch categories
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('categories')
-          .select('id, name, is_consumable')
-          .order('name')
-
-        if (categoriesError) throw categoriesError
-
-        setCategories(categoriesData || [])
-      } catch (error) {
-        console.error('Error fetching data:', error)
-        setErrors([{ type: 'general', message: 'Failed to fetch data' }])
-      }
-    }
-
     if (isOpen) {
+      const fetchData = async () => {
+        try {
+          if (taskId && dialogItems) {
+            // If we have a taskId and items, use those directly
+            const items = dialogItems.map(item => ({
+              ...item,
+              id: item.item_id || item.id,
+              name: item.item?.name || '',
+              category: item.item?.category || '',
+              quantity: item.actual_quantity,
+              description: item.item?.description || '',
+              created_at: item.item?.created_at || new Date().toISOString(),
+              updated_at: item.item?.updated_at || new Date().toISOString(),
+              original_quantity: item.original_quantity,
+              actual_quantity: item.actual_quantity,
+              status: item.status
+            }));
+            setDialogItems(items);
+          } else if (event?.name) {
+            // Fetch event items
+            const { data: eventItems, error } = await supabase
+              .from('event_items')
+              .select('*')
+              .eq('event_name', event.name);
+
+            if (error) throw error;
+
+            const items = eventItems.map(item => ({
+              id: item.id,
+              name: item.name,
+              category: item.category,
+              quantity: item.quantity,
+              description: item.description,
+              created_at: item.created_at,
+              updated_at: item.updated_at,
+              original_quantity: item.quantity,
+              actual_quantity: item.quantity,
+              status: 'pending'
+            }));
+
+            setDialogItems(items);
+          }
+
+          // Fetch categories
+          const { data: categoriesData, error: categoriesError } = await supabase
+            .from('categories')
+            .select('id, name, is_consumable')
+            .order('name')
+
+          if (categoriesError) throw categoriesError
+
+          setCategories(categoriesData || [])
+        } catch (error) {
+          console.error('Error fetching data:', error)
+          setErrors([{ type: 'general', message: 'Failed to fetch data' }])
+        }
+      }
+
       fetchData()
     }
-  }, [isOpen, event?.name])
+  }, [isOpen, event?.name, taskId, dialogItems])
 
   useEffect(() => {
     // Initialize checked items and quantities
     const initialChecked: Record<string, boolean> = {};
     const initialQuantities: Record<string, number> = {};
-    items.forEach(item => {
+    dialogItems.forEach(item => {
       initialChecked[item.id] = false;
       initialQuantities[item.id] = item.quantity;
     });
     setSelectedItemsMap(initialChecked);
     setQuantities(initialQuantities);
-    setItems(items);
-  }, [items]);
+    setDialogItems(dialogItems);
+  }, [dialogItems]);
 
   const handleQuantityChange = (itemId: string, value: number) => {
     setQuantities(prev => ({
@@ -159,125 +189,69 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   };
 
   const handleCheckout = async () => {
-    try {
-      setLoading(true)
-      setErrors([])
-
-      // Validate that at least one item is selected
-      const selectedItems = items.filter(item => selectedItemsMap[item.id])
-      if (selectedItems.length === 0) {
-        setErrors([{ type: 'general', message: "Please select at least one item to check out" }])
-        return
-      }
-
-      // Validate all items first
-      for (const item of selectedItems) {
-        const quantity = quantities[item.id] || 0
-        if (quantity <= 0) {
-          setErrors([{ type: 'item', itemId: item.id, message: "Quantity must be greater than 0" }])
-          return
-        }
-        if (quantity > item.quantity) {
-          setErrors([{ type: 'item', itemId: item.id, message: `Quantity cannot exceed available quantity (${item.quantity})` }])
-          return
-        }
-      }
-
-      // Start a transaction
-      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction')
-      if (transactionError) throw transactionError
-
-      try {
-        // Create checkout task
-        const { data: task, error: taskError } = await supabase
-          .from('checkout_tasks')
-          .insert({
-            event_id: event.id,
-            status: 'in_progress',
-            type: 'checkout',
-            created_by: user?.id
-          })
-          .select()
-          .single()
-
-        if (taskError) throw taskError
-
-        // Process each item within the transaction
-        for (const item of selectedItems) {
-          const quantity = quantities[item.id] || 0
-
-          // Create checkout item
-          const { error: itemError } = await supabase
-            .from('checkout_items')
-            .insert({
-              checkout_task_id: task.id,
-              item_id: item.id,
-              original_quantity: quantity,
-              actual_quantity: quantity,
-              status: 'checked_out',
-              checked_by: user?.id
-            })
-
-          if (itemError) throw itemError
-
-          // Update item quantity
-          const { error: updateError } = await supabase
-            .from('items')
-            .update({
-              quantity: item.quantity - quantity
-            })
-            .eq('id', item.id)
-
-          if (updateError) throw updateError
-
-          // Create audit log
-          const { error: auditError } = await supabase
-            .from('audit_logs')
-            .insert({
-              item_id: item.id,
-              action: 'checkout',
-              quantity_change: -quantity,
-              user_id: user?.id,
-              checkout_task_id: task.id
-            })
-
-          if (auditError) throw auditError
-        }
-
-        // Commit the transaction if all operations succeed
-        const { error: commitError } = await supabase.rpc('commit_transaction')
-        if (commitError) throw commitError
-
-        toast({
-          title: "Success",
-          description: "Items checked out successfully",
-        })
-        onComplete()
-      } catch (error) {
-        // Rollback the transaction if any operation fails
-        const { error: rollbackError } = await supabase.rpc('rollback_transaction')
-        if (rollbackError) {
-          console.error('Error rolling back transaction:', rollbackError)
-        }
-        // Restore the original quantities in case the rollback failed
-        for (const item of selectedItems) {
-          const quantity = quantities[item.id] || 0
-          await supabase
-            .from('items')
-            .update({
-              quantity: item.quantity + quantity
-            })
-            .eq('id', item.id)
-        }
-        throw error
-      }
-    } catch (error) {
-      console.error('Error checking out items:', error)
-      setErrors([{ type: 'general', message: "Failed to check out items. Please try again." }])
-    } finally {
-      setLoading(false)
+    if (!user) {
+      setErrors([{ type: 'general', message: 'User not authenticated' }]);
+      return;
     }
-  }
+
+    if (!event?.id && !taskId) {
+      setErrors([{ type: 'general', message: 'No event or task ID provided' }]);
+      return;
+    }
+
+    setLoading(true);
+    setErrors([]);
+
+    try {
+      // Validate that at least one item is selected
+      const selectedItems = dialogItems.filter(item => selectedItemsMap[item.id]);
+      if (selectedItems.length === 0) {
+        setErrors([{ type: 'general', message: 'Please select at least one item to check out' }]);
+        return;
+      }
+
+      // Create checkout task
+      const { data: task, error: taskError } = await supabase
+        .from('checkout_tasks')
+        .insert({
+          event_id: event?.id,
+          status: 'pending',
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (taskError) throw taskError;
+
+      // Create checkout items
+      const checkoutItems = selectedItems.map(item => ({
+        checkout_task_id: task.id,
+        item_id: item.id,
+        original_quantity: item.quantity,
+        actual_quantity: quantities[item.id] || item.quantity,
+        status: 'pending'
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('checkout_items')
+        .insert(checkoutItems);
+
+      if (itemsError) throw itemsError;
+
+      toast({
+        title: 'Success',
+        description: 'Items checked out successfully'
+      });
+
+      onComplete();
+      onClose();
+    } catch (error) {
+      console.error('Error during checkout:', error);
+      setErrors([{ type: 'general', message: 'Failed to process checkout' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -288,7 +262,7 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {items.map((item) => (
+          {dialogItems.map((item) => (
             <div key={item.id} className="space-y-2 p-4 border rounded-lg">
               <div className="flex items-center space-x-2">
                 <input
