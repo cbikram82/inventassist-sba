@@ -66,12 +66,19 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   const [reasons, setReasons] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    console.log('Event object:', event);
+    console.log('CheckoutDialog mounted with event:', event);
   }, [event]);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!event?.name) {
+        console.log('No event name provided, skipping fetch');
+        return;
+      }
+
       try {
+        console.log('Fetching data for event:', event.name);
+        
         // Fetch event items
         const { data: eventItems, error: eventItemsError } = await supabase
           .from('event_items')
@@ -94,6 +101,8 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
             )
           `)
           .eq('event_name', event.name)
+
+        console.log('Fetched event items:', eventItems);
 
         if (eventItemsError) {
           console.error('Error fetching event items:', eventItemsError)
@@ -118,6 +127,7 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           updated_at: ei.item?.[0]?.updated_at || ei.updated_at || new Date().toISOString()
         }))
 
+        console.log('Transformed items:', transformedItems);
         setItems(transformedItems)
 
         // Fetch categories
@@ -139,9 +149,7 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
       }
     }
 
-    if (event?.name) {
-      fetchData()
-    }
+    fetchData()
   }, [event?.name])
 
   useEffect(() => {
