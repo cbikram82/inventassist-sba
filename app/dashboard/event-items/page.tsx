@@ -567,6 +567,7 @@ export default function EventItemsPage() {
             items={currentCheckoutTask.items}
             type="checkout"
             onComplete={handleCheckoutComplete}
+            user={user}
           />
         )}
 

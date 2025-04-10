@@ -7,34 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
-import { CheckoutItemWithDetails } from '@/types/checkout';
+import { CheckoutItemWithDetails, CheckoutItemStatus } from '@/types/checkout';
 import { updateCheckoutItem, completeCheckoutTask, createAuditLog } from '@/app/actions';
 import { useUser } from '@/lib/useUser';
 import { Loader2 } from 'lucide-react';
 import { DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
-import { Item } from '@/types/item';
 import { User } from '@supabase/supabase-js';
-
-interface CheckoutItem extends Item {
-  checkout_task_id?: string;
-  item_id?: string;
-  item?: {
-    name: string;
-    category: string;
-    quantity: number;
-    description: string;
-    created_at: string;
-    updated_at: string;
-  };
-  original_quantity: number;
-  actual_quantity: number;
-  status: string;
-  checked_by?: string;
-  checked_at?: string;
-  reason?: string;
-}
 
 interface CheckoutDialogProps {
   isOpen: boolean;
@@ -44,38 +24,10 @@ interface CheckoutDialogProps {
     name: string;
   };
   taskId?: string;
-  items?: CheckoutItem[];
+  items?: CheckoutItemWithDetails[];
   type?: 'checkout' | 'checkin';
   onComplete: () => void;
   user: User | null;
-}
-
-type CheckoutError = {
-  type: 'general'
-  message: string
-} | {
-  type: 'item'
-  itemId: string
-  message: string
-}
-
-interface EventItemData {
-  id: string
-  event_name: string
-  item_id: string
-  item_name: string
-  quantity: number
-  created_at: string
-  updated_at: string
-  item: {
-    id: string
-    name: string
-    category: string
-    quantity: number
-    description: string
-    created_at: string
-    updated_at: string
-  }[]
 }
 
 export function CheckoutDialog({
@@ -95,7 +47,7 @@ export function CheckoutDialog({
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([]);
   const [reasons, setReasons] = useState<Record<string, string>>({});
-  const [dialogItems, setDialogItems] = useState<CheckoutItem[]>(initialItems);
+  const [dialogItems, setDialogItems] = useState<CheckoutItemWithDetails[]>(initialItems);
 
   useEffect(() => {
     if (isOpen) {
@@ -103,20 +55,7 @@ export function CheckoutDialog({
         try {
           if (taskId && dialogItems) {
             // If we have a taskId and items, use those directly
-            const items = dialogItems.map(item => ({
-              ...item,
-              id: item.item_id || item.id,
-              name: item.item?.name || '',
-              category: item.item?.category || '',
-              quantity: item.actual_quantity,
-              description: item.item?.description || '',
-              created_at: item.item?.created_at || new Date().toISOString(),
-              updated_at: item.item?.updated_at || new Date().toISOString(),
-              original_quantity: item.original_quantity,
-              actual_quantity: item.actual_quantity,
-              status: item.status
-            }));
-            setDialogItems(items);
+            setDialogItems(dialogItems);
           } else if (event?.name) {
             // Fetch event items
             const { data: eventItems, error } = await supabase
@@ -128,15 +67,33 @@ export function CheckoutDialog({
 
             const items = eventItems.map(item => ({
               id: item.id,
-              name: item.name,
-              category: item.category,
-              quantity: item.quantity,
-              description: item.description,
-              created_at: item.created_at,
-              updated_at: item.updated_at,
+              event_item_id: item.id,
+              item_id: item.item_id,
+              checkout_task_id: taskId || '',
               original_quantity: item.quantity,
               actual_quantity: item.quantity,
-              status: 'pending'
+              status: 'pending' as CheckoutItemStatus,
+              reason: null,
+              checked_by: null,
+              checked_at: null,
+              returned_at: null,
+              event_item: {
+                id: item.id,
+                event_name: event.name,
+                item_id: item.item_id,
+                quantity: item.quantity,
+                created_at: item.created_at,
+                updated_at: item.updated_at
+              },
+              item: {
+                id: item.item_id,
+                name: item.name,
+                category: item.category,
+                quantity: item.quantity,
+                description: item.description,
+                created_at: item.created_at,
+                updated_at: item.updated_at
+              }
             }));
 
             setDialogItems(items);
@@ -167,22 +124,14 @@ export function CheckoutDialog({
     const initialQuantities: Record<string, number> = {};
     dialogItems.forEach(item => {
       initialChecked[item.id] = false;
-      initialQuantities[item.id] = item.quantity;
+      initialQuantities[item.id] = item.actual_quantity;
     });
     setSelectedItemsMap(initialChecked);
     setQuantities(initialQuantities);
-    setDialogItems(dialogItems);
   }, [dialogItems]);
 
   const handleQuantityChange = (itemId: string, value: number) => {
     setQuantities(prev => ({
-      ...prev,
-      [itemId]: value
-    }));
-  };
-
-  const handleReasonChange = (itemId: string, value: string) => {
-    setReasons(prev => ({
       ...prev,
       [itemId]: value
     }));
@@ -239,9 +188,9 @@ export function CheckoutDialog({
       // Create checkout items
       const checkoutItems = selectedItems.map(item => ({
         checkout_task_id: task.id,
-        item_id: item.id,
-        original_quantity: item.quantity || item.actual_quantity,
-        actual_quantity: quantities[item.id] || item.quantity || item.actual_quantity,
+        item_id: item.item_id,
+        original_quantity: item.original_quantity,
+        actual_quantity: quantities[item.id] || item.actual_quantity,
         status: 'pending'
       }));
 
@@ -297,12 +246,12 @@ export function CheckoutDialog({
                   className="h-4 w-4"
                 />
                 <div className="flex-1">
-                  <h4 className="font-medium">{item.name || item.item?.name}</h4>
+                  <h4 className="font-medium">{item.item?.name}</h4>
                   <p className="text-sm text-gray-500">
-                    Category: {item.category || item.item?.category}
-                    {!categories.find(c => c.name === (item.category || item.item?.category))?.is_consumable && " (Non-Consumable)"}
+                    Category: {item.item?.category}
+                    {!categories.find(c => c.name === item.item?.category)?.is_consumable && " (Non-Consumable)"}
                   </p>
-                  <p className="text-sm text-gray-500">Available: {item.quantity || item.actual_quantity}</p>
+                  <p className="text-sm text-gray-500">Available: {item.actual_quantity}</p>
                 </div>
               </div>
               
@@ -311,7 +260,7 @@ export function CheckoutDialog({
                   <Input
                     type="number"
                     min="0"
-                    max={item.quantity || item.actual_quantity}
+                    max={item.actual_quantity}
                     value={quantities[item.id] || 0}
                     onChange={(e) => {
                       const newValue = parseInt(e.target.value)
@@ -319,7 +268,7 @@ export function CheckoutDialog({
                     }}
                     className="w-24"
                   />
-                  <span className="text-sm text-gray-500">of {item.quantity || item.actual_quantity}</span>
+                  <span className="text-sm text-gray-500">of {item.actual_quantity}</span>
                 </div>
               )}
               
