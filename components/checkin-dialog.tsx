@@ -186,6 +186,17 @@ export function CheckinDialog({
 
         if (updateQuantityError) throw updateQuantityError;
 
+        // Update event item quantity
+        const { error: updateEventItemError } = await supabase
+          .from('event_items')
+          .update({
+            quantity: item.original_quantity - (item.actual_quantity - checkinQuantity),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.event_item_id);
+
+        if (updateEventItemError) throw updateEventItemError;
+
         // Update checkout item status
         const { error: updateCheckoutItemError } = await supabase
           .from('checkout_items')
