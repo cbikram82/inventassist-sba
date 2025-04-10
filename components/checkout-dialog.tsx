@@ -64,28 +64,12 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
-  const [checkoutTaskId, setCheckoutTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!event?.name) return;
 
       try {
-        // First, create the checkout task
-        const { data: task, error: taskError } = await supabase
-          .from('checkout_tasks')
-          .insert({
-            event_id: event.id,
-            status: 'pending',
-            type: 'checkout',
-            created_by: user?.id
-          })
-          .select()
-          .single();
-
-        if (taskError) throw taskError;
-        setCheckoutTaskId(task.id);
-
         // Fetch event items
         const { data: eventItems, error: eventItemsError } = await supabase
           .from('event_items')
@@ -134,14 +118,14 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
         setCategories(categoriesData || []);
       } catch (error) {
         console.error('Error in fetchData:', error);
-        setErrors([{ type: 'general', message: 'Failed to initialize checkout' }]);
+        setErrors([{ type: 'general', message: 'Failed to fetch items' }]);
       }
     };
 
     if (isOpen && event?.name) {
       fetchData();
     }
-  }, [isOpen, event?.name, event?.id, user?.id]);
+  }, [isOpen, event?.name]);
 
   useEffect(() => {
     // Initialize checked items and quantities
@@ -171,11 +155,6 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   };
 
   const handleCheckout = async () => {
-    if (!checkoutTaskId) {
-      setErrors([{ type: 'general', message: 'Checkout task not initialized' }]);
-      return;
-    }
-
     try {
       setLoading(true);
       setErrors([]);
@@ -199,20 +178,6 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           return;
         }
 
-        // Create checkout item
-        const { error: itemError } = await supabase
-          .from('checkout_items')
-          .insert({
-            checkout_task_id: checkoutTaskId,
-            item_id: item.id,
-            original_quantity: quantity,
-            actual_quantity: quantity,
-            status: 'checked_out',
-            checked_by: user?.id
-          });
-
-        if (itemError) throw itemError;
-
         // Update item quantity
         const { error: updateError } = await supabase
           .from('items')
@@ -228,20 +193,11 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
             item_id: item.id,
             action: 'checkout',
             quantity_change: -quantity,
-            user_id: user?.id,
-            checkout_task_id: checkoutTaskId
+            user_id: user?.id
           });
 
         if (auditError) throw auditError;
       }
-
-      // Update checkout task status
-      const { error: taskError } = await supabase
-        .from('checkout_tasks')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
-        .eq('id', checkoutTaskId);
-
-      if (taskError) throw taskError;
 
       toast({
         title: 'Success',
