@@ -18,12 +18,15 @@ import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { useUser } from "@/lib/useUser"
 import { updateCheckoutItem } from "@/app/actions"
+import { User } from "@/types/user"
 
 interface CheckinDialogProps {
   isOpen: boolean
   onClose: () => void
   items: CheckoutItemWithDetails[]
   onComplete: () => void
+  user: User | null
+  taskId: string
 }
 
 const REASON_CODES = [
@@ -32,17 +35,25 @@ const REASON_CODES = [
   { id: "other", label: "Other" }
 ]
 
-export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDialogProps) {
+export function CheckinDialog({
+  isOpen,
+  onClose,
+  items: initialItems = [],
+  onComplete,
+  user,
+  taskId
+}: CheckinDialogProps) {
   const { toast } = useToast()
-  const { user } = useUser()
+  const { user: currentUser } = useUser()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
-  const [reasons, setReasons] = useState<Record<string, string>>({})
-  const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
-  const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
-  const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
   const [selectedItemsMap, setSelectedItemsMap] = useState<Record<string, boolean>>({})
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, number>>({})
+  const [reasonCodes, setReasonCodes] = useState<Record<string, string>>({})
+  const [reasons, setReasons] = useState<Record<string, string>>({})
+  const [categories, setCategories] = useState<{ id: string; name: string; is_consumable: boolean }[]>([])
+  const [items, setItems] = useState<CheckoutItemWithDetails[]>(initialItems)
+  const [reasonVisibility, setReasonVisibility] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -124,126 +135,111 @@ export function CheckinDialog({ isOpen, onClose, items, onComplete }: CheckinDia
   }
 
   const handleCheckin = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+    console.log('Starting checkin process...');
+    console.log('Selected items:', items.filter(item => selectedItemsMap[item.id]));
+    console.log('Quantities:', returnQuantities);
+    console.log('Reasons:', reasons);
 
-      // Validate that at least one item is selected
-      const selectedItems = items.filter(item => selectedItemsMap[item.id])
-      if (selectedItems.length === 0) {
-        setError('Please select at least one item to check in')
-        return
-      }
-
-      // Validate all items first
-      for (const item of selectedItems) {
-        const returnQuantity = returnQuantities[item.id] || 0
-        const itemCategory = categories.find(c => c.name === item.item?.category)
-        const isConsumable = itemCategory?.is_consumable === true
-
-        if (!isConsumable) {
-          // For non-consumable items, require exact return or valid reason
-          if (returnQuantity !== item.actual_quantity) {
-            if (!reasonCodes[item.id] || !reasons[item.id]) {
-              setError(`Please provide a reason for ${item.item?.name} as the return quantity doesn't match the checked out quantity`)
-              return
-            }
-          }
-        }
-      }
-
-      // Start a transaction
-      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction')
-      if (transactionError) throw transactionError
-
-      try {
-        // Process each item within the transaction
-        for (const item of selectedItems) {
-          const returnQuantity = returnQuantities[item.id] || 0
-          const itemCategory = categories.find(c => c.name === item.item?.category)
-          const isConsumable = itemCategory?.is_consumable === true
-
-          // Format reason as a string if needed
-          let reason: string | undefined = undefined
-          if (!isConsumable && returnQuantity !== item.actual_quantity) {
-            const reasonCode = reasonCodes[item.id]
-            const reasonText = reasons[item.id]
-            if (reasonCode && reasonText) {
-              reason = `${reasonCode}: ${reasonText}`
-            }
-          }
-
-          // Update checkout item status first
-          const { error: updateError } = await supabase
-            .from('checkout_items')
-            .update({
-              actual_quantity: returnQuantity,
-              status: 'checked_in',
-              checked_by: user?.id,
-              reason: reason
-            })
-            .eq('id', item.id)
-
-          if (updateError) throw updateError
-
-          // Get current item quantity
-          const { data: currentItem, error: itemError } = await supabase
-            .from('items')
-            .select('quantity')
-            .eq('id', item.item_id)
-            .single()
-
-          if (itemError) throw itemError
-
-          // Update item quantity
-          const { error: updateQuantityError } = await supabase
-            .from('items')
-            .update({
-              quantity: (currentItem?.quantity || 0) + returnQuantity
-            })
-            .eq('id', item.item_id)
-
-          if (updateQuantityError) throw updateQuantityError
-
-          // Create audit log
-          const { error: auditError } = await supabase
-            .from('audit_logs')
-            .insert({
-              item_id: item.item_id,
-              action: 'checkin',
-              quantity_change: returnQuantity,
-              user_id: user?.id,
-              checkout_task_id: item.checkout_task_id,
-              reason: reason
-            })
-
-          if (auditError) throw auditError
-        }
-
-        // Commit the transaction if all operations succeed
-        const { error: commitError } = await supabase.rpc('commit_transaction')
-        if (commitError) throw commitError
-
-        toast({
-          title: "Success",
-          description: "Items checked in successfully",
-        })
-        onComplete()
-      } catch (error) {
-        // Rollback the transaction if any operation fails
-        const { error: rollbackError } = await supabase.rpc('rollback_transaction')
-        if (rollbackError) {
-          console.error('Error rolling back transaction:', rollbackError)
-        }
-        throw error
-      }
-    } catch (error) {
-      console.error('Error checking in items:', error)
-      setError('Failed to check in items. Please try again.')
-    } finally {
-      setLoading(false)
+    if (!user) {
+      console.error('No user found');
+      setError('User not authenticated');
+      return;
     }
-  }
+
+    if (!taskId) {
+      console.error('No task ID provided');
+      setError('No task ID provided');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Validate that at least one item is selected
+      const selectedItems = items.filter(item => selectedItemsMap[item.id]);
+      if (selectedItems.length === 0) {
+        console.error('No items selected');
+        setError('Please select at least one item to check in');
+        return;
+      }
+
+      // Process each item
+      for (const item of selectedItems) {
+        const checkinQuantity = returnQuantities[item.id] || item.actual_quantity;
+        const reason = reasons[item.id] || '';
+
+        // Get current item quantity
+        const { data: currentItem, error: itemError } = await supabase
+          .from('items')
+          .select('quantity')
+          .eq('id', item.item_id)
+          .single();
+
+        if (itemError) throw itemError;
+
+        // Update item quantity
+        const { error: updateQuantityError } = await supabase
+          .from('items')
+          .update({
+            quantity: (currentItem?.quantity || 0) + checkinQuantity
+          })
+          .eq('id', item.item_id);
+
+        if (updateQuantityError) throw updateQuantityError;
+
+        // Update checkout item status
+        const { error: updateCheckoutItemError } = await supabase
+          .from('checkout_items')
+          .update({
+            status: 'checked_in',
+            returned_at: new Date().toISOString(),
+            reason: reason
+          })
+          .eq('id', item.id);
+
+        if (updateCheckoutItemError) throw updateCheckoutItemError;
+
+        // Create audit log
+        const { error: auditError } = await supabase
+          .from('audit_logs')
+          .insert({
+            user_id: user.id,
+            action: 'checkin',
+            item_id: item.item_id,
+            checkout_task_id: taskId,
+            quantity_change: checkinQuantity,
+            reason: reason
+          });
+
+        if (auditError) throw auditError;
+      }
+
+      // Update task status to completed
+      const { error: updateTaskError } = await supabase
+        .from('checkout_tasks')
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
+
+      if (updateTaskError) throw updateTaskError;
+
+      toast({
+        title: 'Success',
+        description: 'Items checked in successfully'
+      });
+
+      onComplete();
+      onClose();
+    } catch (error) {
+      console.error('Error checking in items:', error);
+      setError('Failed to process checkin');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
