@@ -189,12 +189,18 @@ export function CheckoutDialog({
   };
 
   const handleCheckout = async () => {
+    console.log('Starting checkout process...');
+    console.log('Selected items:', dialogItems.filter(item => selectedItemsMap[item.id]));
+    console.log('Quantities:', quantities);
+
     if (!user) {
+      console.error('No user found');
       setErrors([{ type: 'general', message: 'User not authenticated' }]);
       return;
     }
 
     if (!event?.id && !taskId) {
+      console.error('No event ID or task ID provided');
       setErrors([{ type: 'general', message: 'No event or task ID provided' }]);
       return;
     }
@@ -206,10 +212,12 @@ export function CheckoutDialog({
       // Validate that at least one item is selected
       const selectedItems = dialogItems.filter(item => selectedItemsMap[item.id]);
       if (selectedItems.length === 0) {
+        console.error('No items selected');
         setErrors([{ type: 'general', message: 'Please select at least one item to check out' }]);
         return;
       }
 
+      console.log('Creating checkout task...');
       // Create checkout task
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
@@ -221,22 +229,34 @@ export function CheckoutDialog({
         .select()
         .single();
 
-      if (taskError) throw taskError;
+      if (taskError) {
+        console.error('Error creating checkout task:', taskError);
+        throw taskError;
+      }
+
+      console.log('Checkout task created:', task);
 
       // Create checkout items
       const checkoutItems = selectedItems.map(item => ({
         checkout_task_id: task.id,
         item_id: item.id,
-        original_quantity: item.quantity,
-        actual_quantity: quantities[item.id] || item.quantity,
+        original_quantity: item.quantity || item.actual_quantity,
+        actual_quantity: quantities[item.id] || item.quantity || item.actual_quantity,
         status: 'pending'
       }));
+
+      console.log('Creating checkout items:', checkoutItems);
 
       const { error: itemsError } = await supabase
         .from('checkout_items')
         .insert(checkoutItems);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        console.error('Error creating checkout items:', itemsError);
+        throw itemsError;
+      }
+
+      console.log('Checkout items created successfully');
 
       toast({
         title: 'Success',
