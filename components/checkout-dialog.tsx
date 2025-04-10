@@ -66,19 +66,12 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
   const [reasons, setReasons] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    console.log('CheckoutDialog mounted with event:', event);
+    console.log('Event object:', event);
   }, [event]);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!event?.name) {
-        console.log('No event name provided, skipping fetch');
-        return;
-      }
-
       try {
-        console.log('Fetching data for event:', event.name);
-        
         // Fetch event items
         const { data: eventItems, error: eventItemsError } = await supabase
           .from('event_items')
@@ -102,22 +95,10 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           `)
           .eq('event_name', event.name)
 
-        console.log('Fetched event items:', eventItems);
-
-        if (eventItemsError) {
-          console.error('Error fetching event items:', eventItemsError)
-          setErrors([{ type: 'general', message: 'Failed to fetch event items' }])
-          return
-        }
-
-        if (!eventItems || eventItems.length === 0) {
-          console.log('No event items found for event:', event.name)
-          setItems([])
-          return
-        }
+        if (eventItemsError) throw eventItemsError
 
         // Transform the data to match our Item type
-        const transformedItems = eventItems.map(ei => ({
+        const items = (eventItems as unknown as EventItemData[] || []).map(ei => ({
           id: ei.item_id || '',
           name: ei.item_name || '',
           category: ei.item?.[0]?.category || '',
@@ -127,8 +108,7 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           updated_at: ei.item?.[0]?.updated_at || ei.updated_at || new Date().toISOString()
         }))
 
-        console.log('Transformed items:', transformedItems);
-        setItems(transformedItems)
+        setItems(items)
 
         // Fetch categories
         const { data: categoriesData, error: categoriesError } = await supabase
@@ -136,21 +116,17 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
           .select('id, name, is_consumable')
           .order('name')
 
-        if (categoriesError) {
-          console.error('Error fetching categories:', categoriesError)
-          setErrors([{ type: 'general', message: 'Failed to fetch categories' }])
-          return
-        }
+        if (categoriesError) throw categoriesError
 
         setCategories(categoriesData || [])
       } catch (error) {
-        console.error('Error in fetchData:', error)
-        setErrors([{ type: 'general', message: 'An unexpected error occurred' }])
+        console.error('Error fetching data:', error)
+        setErrors([{ type: 'general', message: 'Failed to fetch data' }])
       }
     }
 
     fetchData()
-  }, [event?.name])
+  }, [event.name])
 
   useEffect(() => {
     // Initialize checked items and quantities
