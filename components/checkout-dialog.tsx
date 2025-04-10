@@ -125,8 +125,10 @@ export function CheckoutDialog({ isOpen, onClose, event, onComplete }: CheckoutD
       }
     }
 
-    fetchData()
-  }, [event.name])
+    if (event?.name) {
+      fetchData()
+    }
+  }, [event?.name])
 
   useEffect(() => {
     // Initialize checked items and quantities
