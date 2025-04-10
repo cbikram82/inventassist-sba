@@ -209,12 +209,24 @@ export function CheckoutDialog({
 
         if (updateQuantityError) throw updateQuantityError;
 
+        // Update event item status
+        const { error: updateEventItemError } = await supabase
+          .from('event_items')
+          .update({
+            status: 'checked_out',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.event_item_id);
+
+        if (updateEventItemError) throw updateEventItemError;
+
         // Create checkout item with checked status
         const { error: checkoutItemError } = await supabase
           .from('checkout_items')
           .insert({
             checkout_task_id: task.id,
             item_id: item.item_id,
+            event_item_id: item.event_item_id,
             original_quantity: item.original_quantity,
             actual_quantity: checkoutQuantity,
             status: 'checked',
@@ -224,18 +236,33 @@ export function CheckoutDialog({
 
         if (checkoutItemError) throw checkoutItemError;
 
-        // Create audit log
-        const { error: auditError } = await supabase
+        // Create audit log for item quantity change
+        const { error: itemAuditError } = await supabase
           .from('audit_logs')
           .insert({
             user_id: user.id,
             action: 'checkout',
             item_id: item.item_id,
             checkout_task_id: task.id,
-            quantity_change: -checkoutQuantity
+            quantity_change: -checkoutQuantity,
+            reason: 'Item checked out'
           });
 
-        if (auditError) throw auditError;
+        if (itemAuditError) throw itemAuditError;
+
+        // Create audit log for event item status change
+        const { error: eventItemAuditError } = await supabase
+          .from('audit_logs')
+          .insert({
+            user_id: user.id,
+            action: 'status_change',
+            item_id: item.item_id,
+            checkout_task_id: task.id,
+            event_item_id: item.event_item_id,
+            reason: 'Event item checked out'
+          });
+
+        if (eventItemAuditError) throw eventItemAuditError;
       }
 
       // Update task status to completed
