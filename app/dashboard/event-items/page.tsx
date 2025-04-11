@@ -114,6 +114,26 @@ export default function EventItemsPage() {
     }
   }, [selectedEvent]);
 
+  // Add useEffect to fetch items when component mounts
+  useEffect(() => {
+    const fetchInitialItems = async () => {
+      try {
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('items')
+          .select('*')
+          .order('name');
+
+        if (itemsError) throw itemsError;
+        setItems(itemsData || []);
+      } catch (err) {
+        console.error('Error fetching initial items:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch items');
+      }
+    };
+
+    fetchInitialItems();
+  }, []);
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
@@ -473,87 +493,119 @@ export default function EventItemsPage() {
     <div className="space-y-4 p-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold">Event Items</h1>
-        <Button onClick={() => setShowAddDialog(true)} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Item
-        </Button>
+        <div className="flex items-center gap-4">
+          <Select
+            value={selectedEvent}
+            onValueChange={setSelectedEvent}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select an event" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableEvents.map((event) => (
+                <SelectItem key={event} value={event}>
+                  {event}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button 
+            onClick={() => setShowAddDialog(true)} 
+            className="w-full sm:w-auto"
+            disabled={!selectedEvent}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Item
+          </Button>
+        </div>
       </div>
 
-      {/* Desktop View */}
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Item Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Remaining</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      {selectedEvent ? (
+        <>
+          {/* Desktop View */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Remaining</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {eventItems.map((eventItem) => (
+                  <TableRow key={eventItem.id}>
+                    <TableCell>{eventItem.item?.name}</TableCell>
+                    <TableCell>{eventItem.item?.category}</TableCell>
+                    <TableCell>{eventItem.quantity}</TableCell>
+                    <TableCell>{eventItem.remainingQuantity}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCheckout(eventItem)}
+                        disabled={eventItem.remainingQuantity <= 0}
+                      >
+                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        Checkout
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile View */}
+          <div className="md:hidden space-y-4">
             {eventItems.map((eventItem) => (
-              <TableRow key={eventItem.id}>
-                <TableCell>{eventItem.item?.name}</TableCell>
-                <TableCell>{eventItem.item?.category}</TableCell>
-                <TableCell>{eventItem.quantity}</TableCell>
-                <TableCell>{eventItem.remainingQuantity}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCheckout(eventItem)}
-                    disabled={eventItem.remainingQuantity <= 0}
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    Checkout
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <Card key={eventItem.id} className="p-4">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <h3 className="font-semibold text-lg">{eventItem.item?.name}</h3>
+                      <p className="text-sm text-gray-500">{eventItem.item?.category}</p>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <p className="text-sm font-medium">Quantity: {eventItem.quantity}</p>
+                      <p className="text-sm font-medium">Remaining: {eventItem.remainingQuantity}</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => handleCheckout(eventItem)}
+                      disabled={eventItem.remainingQuantity <= 0}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Checkout
+                    </Button>
+                  </div>
+                </div>
+              </Card>
             ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mobile View */}
-      <div className="md:hidden space-y-4">
-        {eventItems.map((eventItem) => (
-          <Card key={eventItem.id} className="p-4">
-            <div className="space-y-3">
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-lg">{eventItem.item?.name}</h3>
-                  <p className="text-sm text-gray-500">{eventItem.item?.category}</p>
-                </div>
-                <div className="text-right space-y-1">
-                  <p className="text-sm font-medium">Quantity: {eventItem.quantity}</p>
-                  <p className="text-sm font-medium">Remaining: {eventItem.remainingQuantity}</p>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={() => handleCheckout(eventItem)}
-                  disabled={eventItem.remainingQuantity <= 0}
-                >
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Checkout
-                </Button>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-8 text-muted-foreground">
+          Please select an event to view and manage items
+        </div>
+      )}
 
       {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add Item to Event</DialogTitle>
+            <DialogTitle>Add Item to {selectedEvent}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddItem} className="space-y-4">
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            handleAddItem();
+          }} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="item">Item</Label>
               <Select
@@ -566,7 +618,7 @@ export default function EventItemsPage() {
                 <SelectContent>
                   {items.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
-                      {item.name}
+                      {item.name} ({item.quantity} available)
                     </SelectItem>
                   ))}
                 </SelectContent>
