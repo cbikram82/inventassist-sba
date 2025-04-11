@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { useAddToHomeScreen } from "@/lib/useAddToHomeScreen";
 import { Download } from "lucide-react";
