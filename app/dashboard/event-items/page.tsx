@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils"
 import { CheckoutDialog } from '@/components/checkout-dialog';
 import { createCheckoutTask, getCheckoutTask } from '@/app/actions';
-import { CheckoutItemWithDetails, CheckoutTaskState, CheckoutTaskType } from '@/types/checkout';
+import { CheckoutItemWithDetails, CheckoutTaskState, CheckoutTaskType, CheckoutItemStatus } from '@/types/checkout';
 import { useUser } from '@/lib/useUser';
 import { CheckinDialog } from '@/components/checkin-dialog';
 
@@ -338,45 +338,65 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
-      // Get the session token
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Not authenticated');
-      }
-
-      // Call the API route to create checkout task
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          eventName: selectedEvent,
+      // Create checkout task
+      const { data: task, error: taskError } = await supabase
+        .from('checkout_tasks')
+        .insert({
+          event_name: selectedEvent,
           type: 'checkout',
-        }),
-      });
+          status: 'pending',
+          created_by: user.id
+        })
+        .select()
+        .single();
 
-      if (!response.ok) {
-        throw new Error('Failed to create checkout task');
-      }
+      if (taskError) throw taskError;
 
-      const taskWithItems = await response.json();
+      // Create checkout items
+      const checkoutItems = [{
+        task_id: task.id,
+        event_item_id: eventItem.id,
+        item_id: eventItem.item_id,
+        quantity: eventItem.remainingQuantity,
+        status: 'pending' as CheckoutItemStatus,
+        created_by: user.id
+      }];
 
-      if (taskWithItems && taskWithItems.checkout_items) {
-        setCurrentCheckoutTask({
-          id: taskWithItems.id,
-          items: taskWithItems.checkout_items,
-          type: 'checkout'
-        });
+      const { error: itemsError } = await supabase
+        .from('checkout_items')
+        .insert(checkoutItems);
 
-        setIsCheckoutDialogOpen(true);
-      }
+      if (itemsError) throw itemsError;
+
+      // Set the current task and items
+      setCurrentTaskId(task.id);
+      setSelectedItems([{
+        id: eventItem.id,
+        checkout_task_id: task.id,
+        item_id: eventItem.item_id,
+        event_item_id: eventItem.id,
+        original_quantity: eventItem.quantity,
+        actual_quantity: eventItem.remainingQuantity,
+        status: 'pending' as CheckoutItemStatus,
+        reason: null,
+        checked_by: null,
+        checked_at: null,
+        returned_at: null,
+        item: {
+          name: eventItem.item.name,
+          category: eventItem.item.category,
+          quantity: eventItem.item.quantity
+        },
+        event_item: {
+          quantity: eventItem.quantity
+        }
+      }]);
+      setShowCheckoutDialog(true);
     } catch (error) {
-      console.error('Error creating checkout task:', error);
+      console.error('Error creating checkout:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create checkout task",
+        description: error instanceof Error ? error.message : "Failed to create checkout",
         variant: "destructive",
       });
     }
@@ -406,47 +426,87 @@ export default function EventItemsPage() {
   };
 
   const handleCheckin = async () => {
+    if (!selectedEvent || !user?.id) return;
+
     try {
       // Get checked out items for the selected event
       const { data: checkoutItems, error } = await supabase
         .from('checkout_items')
         .select(`
           *,
-          item:items (
+          event_item:event_items (
             id,
-            name,
-            category,
-            quantity
-          ),
-          checkout_task:checkout_tasks (
-            event_name
+            item_id,
+            item_name,
+            quantity,
+            item:items (
+              id,
+              name,
+              category,
+              quantity
+            )
           )
         `)
         .eq('status', 'checked')
-        .eq('checkout_task.event_name', selectedEvent)
+        .eq('event_item.event_name', selectedEvent);
 
-      if (error) throw error
+      if (error) throw error;
 
       if (!checkoutItems || checkoutItems.length === 0) {
         toast({
           title: "No items to check in",
           description: "There are no checked out items for this event",
-        })
-        return
+        });
+        return;
       }
 
-      // Set the items for check-in
-      setCurrentCheckinItems(checkoutItems);
+      // Create checkout task for checkin
+      const { data: task, error: taskError } = await supabase
+        .from('checkout_tasks')
+        .insert({
+          event_name: selectedEvent,
+          type: 'checkin',
+          status: 'pending',
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (taskError) throw taskError;
+
+      // Set the current task and items
+      setCurrentTaskId(task.id);
+      setSelectedItems(checkoutItems.map(item => ({
+        id: item.id,
+        checkout_task_id: task.id,
+        item_id: item.event_item.item_id,
+        event_item_id: item.event_item.id,
+        original_quantity: item.event_item.quantity,
+        actual_quantity: item.quantity,
+        status: 'checked' as CheckoutItemStatus,
+        reason: null,
+        checked_by: null,
+        checked_at: null,
+        returned_at: null,
+        item: {
+          name: item.event_item.item.name,
+          category: item.event_item.item.category,
+          quantity: item.event_item.item.quantity
+        },
+        event_item: {
+          quantity: item.event_item.quantity
+        }
+      })));
       setIsCheckinDialogOpen(true);
     } catch (error) {
-      console.error('Error preparing checkin:', error)
+      console.error('Error preparing checkin:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to prepare checkin",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleCheckinComplete = async () => {
     try {
@@ -516,6 +576,14 @@ export default function EventItemsPage() {
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Item
+          </Button>
+          <Button 
+            onClick={handleCheckin}
+            className="w-full sm:w-auto"
+            disabled={!selectedEvent}
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Check In
           </Button>
         </div>
       </div>
@@ -665,6 +733,16 @@ export default function EventItemsPage() {
         onComplete={handleCheckoutComplete}
         taskId={currentTaskId}
         user={user}
+        type="checkout"
+      />
+
+      {/* Checkin Dialog */}
+      <CheckinDialog
+        isOpen={isCheckinDialogOpen}
+        onClose={() => setIsCheckinDialogOpen(false)}
+        items={selectedItems}
+        onComplete={handleCheckinComplete}
+        taskId={currentTaskId || ''}
       />
     </div>
   )
