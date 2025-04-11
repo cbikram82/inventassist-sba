@@ -14,7 +14,14 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Service Worker: Caching app shell');
-        return cache.addAll(urlsToCache);
+        return Promise.all(
+          urlsToCache.map(url => 
+            cache.add(url).catch(err => {
+              console.warn(`Failed to cache ${url}:`, err);
+              return Promise.resolve(); // Continue even if one file fails
+            })
+          )
+        );
       })
       .then(() => {
         console.log('Service Worker: App shell cached');
