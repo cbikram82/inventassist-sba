@@ -6,10 +6,10 @@ import { Toaster } from "@/components/ui/toaster"
 import { Footer } from "@/components/footer"
 import { AuthProvider } from "@/app/auth-provider"
 import { ErrorBoundary } from "@/components/error-boundary"
-import { useEffect } from 'react';
 import { cn } from "@/lib/utils"
 import { ThemeProvider } from "@/components/ui/theme-provider"
 import { InstallPrompt } from "@/components/install-prompt"
+import { ServiceWorkerRegister } from "@/components/service-worker-register"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,20 +24,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('ServiceWorker registration successful');
-          })
-          .catch(err => {
-            console.log('ServiceWorker registration failed: ', err);
-          });
-      });
-    }
-  }, []);
-
   return (
     <html lang="en">
       <head>
@@ -59,6 +45,7 @@ export default function RootLayout({
             <Toaster />
           </AuthProvider>
         </ErrorBoundary>
+        <ServiceWorkerRegister />
       </body>
     </html>
   )
