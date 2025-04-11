@@ -334,15 +334,24 @@ export default function EventItemsPage() {
     }
   }
 
-  const handleCheckout = async (eventItem: ProcessedEventItem) => {
+  const handleCheckout = async () => {
     if (!selectedEvent || !user?.id) return;
 
     try {
+      // Get event ID from event name
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('name', selectedEvent)
+        .single();
+
+      if (eventError) throw eventError;
+
       // Create checkout task
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
         .insert({
-          event_name: selectedEvent,
+          event_id: event.id,
           type: 'checkout',
           status: 'pending',
           created_by: user.id
@@ -352,31 +361,15 @@ export default function EventItemsPage() {
 
       if (taskError) throw taskError;
 
-      // Create checkout items
-      const checkoutItems = [{
-        task_id: task.id,
-        event_item_id: eventItem.id,
-        item_id: eventItem.item_id,
-        quantity: eventItem.remainingQuantity,
-        status: 'pending' as CheckoutItemStatus,
-        created_by: user.id
-      }];
-
-      const { error: itemsError } = await supabase
-        .from('checkout_items')
-        .insert(checkoutItems);
-
-      if (itemsError) throw itemsError;
-
       // Set the current task and items
       setCurrentTaskId(task.id);
-      setSelectedItems([{
+      setSelectedItems(eventItems.map(eventItem => ({
         id: eventItem.id,
         checkout_task_id: task.id,
         item_id: eventItem.item_id,
         event_item_id: eventItem.id,
         original_quantity: eventItem.quantity,
-        actual_quantity: eventItem.remainingQuantity,
+        actual_quantity: eventItem.quantity,
         status: 'pending' as CheckoutItemStatus,
         reason: null,
         checked_by: null,
@@ -390,7 +383,7 @@ export default function EventItemsPage() {
         event_item: {
           quantity: eventItem.quantity
         }
-      }]);
+      })));
       setShowCheckoutDialog(true);
     } catch (error) {
       console.error('Error creating checkout:', error);
@@ -429,6 +422,15 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
+      // Get event ID from event name
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('name', selectedEvent)
+        .single();
+
+      if (eventError) throw eventError;
+
       // Get checked out items for the selected event
       const { data: checkoutItems, error } = await supabase
         .from('checkout_items')
@@ -448,7 +450,7 @@ export default function EventItemsPage() {
           )
         `)
         .eq('status', 'checked')
-        .eq('event_item.event_name', selectedEvent);
+        .eq('event_item.event_id', event.id);
 
       if (error) throw error;
 
@@ -464,7 +466,7 @@ export default function EventItemsPage() {
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
         .insert({
-          event_name: selectedEvent,
+          event_id: event.id,
           type: 'checkin',
           status: 'pending',
           created_by: user.id
@@ -613,7 +615,7 @@ export default function EventItemsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleCheckout(eventItem)}
+                        onClick={() => handleCheckout()}
                         disabled={eventItem.remainingQuantity <= 0}
                       >
                         <ShoppingCart className="h-4 w-4 mr-2" />
@@ -646,7 +648,7 @@ export default function EventItemsPage() {
                       variant="outline"
                       size="sm"
                       className="w-full sm:w-auto"
-                      onClick={() => handleCheckout(eventItem)}
+                      onClick={() => handleCheckout()}
                       disabled={eventItem.remainingQuantity <= 0}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
