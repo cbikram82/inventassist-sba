@@ -97,9 +97,10 @@ export default function EventItemsPage() {
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
   const [currentCheckinItems, setCurrentCheckinItems] = useState<CheckoutItemWithDetails[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [selectedItems, setSelectedItems] = useState<ProcessedEventItem[]>([]);
-  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [selectedItems, setSelectedItems] = useState<CheckoutItemWithDetails[]>([]);
+  const [currentTaskId, setCurrentTaskId] = useState<string | undefined>(undefined);
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [isAddingItem, setIsAddingItem] = useState(false);
 
   // Add useEffect to fetch data when selectedEvent changes
   useEffect(() => {
@@ -240,6 +241,7 @@ export default function EventItemsPage() {
     }
 
     try {
+      setIsAddingItem(true);
       const selectedItemData = items.find(item => item.id === selectedItem)
       if (!selectedItemData) throw new Error("Item not found")
 
@@ -282,6 +284,8 @@ export default function EventItemsPage() {
         description: error instanceof Error ? error.message : "Failed to add item",
         variant: "destructive",
       })
+    } finally {
+      setIsAddingItem(false);
     }
   }
 
@@ -310,7 +314,7 @@ export default function EventItemsPage() {
     }
   }
 
-  const handleCheckout = async (type: CheckoutTaskType) => {
+  const handleCheckout = async (eventItem: ProcessedEventItem) => {
     if (!selectedEvent || !user?.id) return;
 
     try {
@@ -329,7 +333,7 @@ export default function EventItemsPage() {
         },
         body: JSON.stringify({
           eventName: selectedEvent,
-          type,
+          type: 'checkout',
         }),
       });
 
@@ -343,7 +347,7 @@ export default function EventItemsPage() {
         setCurrentCheckoutTask({
           id: taskWithItems.id,
           items: taskWithItems.checkout_items,
-          type
+          type: 'checkout'
         });
 
         setIsCheckoutDialogOpen(true);
@@ -553,7 +557,6 @@ export default function EventItemsPage() {
             <div className="space-y-2">
               <Label htmlFor="item">Item</Label>
               <Select
-                id="item"
                 value={selectedItem}
                 onValueChange={setSelectedItem}
               >
@@ -587,8 +590,15 @@ export default function EventItemsPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Adding..." : "Add Item"}
+              <Button type="submit" disabled={isAddingItem}>
+                {isAddingItem ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  "Add Item"
+                )}
               </Button>
             </div>
           </form>
@@ -602,6 +612,7 @@ export default function EventItemsPage() {
         items={selectedItems}
         onComplete={handleCheckoutComplete}
         taskId={currentTaskId}
+        user={user}
       />
     </div>
   )
