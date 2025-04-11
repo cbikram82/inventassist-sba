@@ -1,10 +1,7 @@
 const CACHE_NAME = 'inventassist-cache-v1';
 const urlsToCache = [
   '/',
-  '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
-  '/logo.png'
+  '/manifest.json'
 ];
 
 // Install event - cache the app shell
@@ -52,6 +49,21 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache or network
 self.addEventListener('fetch', (event) => {
+  // Skip caching for Chrome extension requests
+  if (event.request.url.startsWith('chrome-extension://')) {
+    return;
+  }
+
+  // Skip caching for non-GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Skip caching for non-http(s) requests
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   console.log('Service Worker: Fetching', event.request.url);
   event.respondWith(
     caches.match(event.request)
@@ -75,10 +87,19 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME)
               .then((cache) => {
                 console.log('Service Worker: Caching new response', event.request.url);
-                cache.put(event.request, responseToCache);
+                cache.put(event.request, responseToCache).catch(err => {
+                  console.warn('Failed to cache response:', err);
+                });
               });
 
             return response;
+          })
+          .catch(err => {
+            console.warn('Fetch failed:', err);
+            return new Response('Network error occurred', {
+              status: 408,
+              statusText: 'Network error'
+            });
           });
       })
   );
