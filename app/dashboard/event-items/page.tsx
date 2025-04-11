@@ -585,6 +585,14 @@ export default function EventItemsPage() {
             Add Item
           </Button>
           <Button 
+            onClick={handleCheckout}
+            className="w-full sm:w-auto"
+            disabled={!selectedEvent}
+          >
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Checkout
+          </Button>
+          <Button 
             onClick={handleCheckin}
             className="w-full sm:w-auto"
             disabled={!selectedEvent}
@@ -606,6 +614,7 @@ export default function EventItemsPage() {
                   <TableHead>Category</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Remaining</TableHead>
+                  <TableHead>Last Action</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -617,14 +626,23 @@ export default function EventItemsPage() {
                     <TableCell>{eventItem.quantity}</TableCell>
                     <TableCell>{eventItem.remainingQuantity}</TableCell>
                     <TableCell>
+                      {eventItem.last_checked_by && (
+                        <div className="text-sm">
+                          <div className="font-medium">{eventItem.last_checked_by}</div>
+                          <div className="text-gray-500">
+                            {eventItem.last_checked_at ? new Date(eventItem.last_checked_at).toLocaleString() : ''}
+                          </div>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleCheckout()}
-                        disabled={eventItem.remainingQuantity <= 0}
+                        onClick={() => handleDeleteItem(eventItem.id)}
+                        disabled={eventItem.remainingQuantity < eventItem.quantity}
                       >
-                        <ShoppingCart className="h-4 w-4 mr-2" />
-                        Checkout
+                        Delete
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -648,16 +666,21 @@ export default function EventItemsPage() {
                       <p className="text-sm font-medium">Remaining: {eventItem.remainingQuantity}</p>
                     </div>
                   </div>
+                  {eventItem.last_checked_by && (
+                    <div className="text-sm text-gray-500">
+                      <div>Last action by: {eventItem.last_checked_by}</div>
+                      <div>On: {eventItem.last_checked_at ? new Date(eventItem.last_checked_at).toLocaleString() : ''}</div>
+                    </div>
+                  )}
                   <div className="flex justify-end">
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleDeleteItem(eventItem.id)}
+                      disabled={eventItem.remainingQuantity < eventItem.quantity}
                       className="w-full sm:w-auto"
-                      onClick={() => handleCheckout()}
-                      disabled={eventItem.remainingQuantity <= 0}
                     >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Checkout
+                      Delete
                     </Button>
                   </div>
                 </div>
