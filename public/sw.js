@@ -1,7 +1,8 @@
 const CACHE_NAME = 'inventassist-cache-v1';
 const urlsToCache = [
   '/',
-  '/manifest.json'
+  '/manifest.json',
+  '/api/event-items'
 ];
 
 // Install event - cache the app shell
@@ -64,6 +65,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Skip caching for API requests that need fresh data
+  if (event.request.url.includes('/api/') && !event.request.url.includes('/api/event-items')) {
+    return;
+  }
+
   console.log('Service Worker: Fetching', event.request.url);
   event.respondWith(
     caches.match(event.request)
@@ -96,6 +102,16 @@ self.addEventListener('fetch', (event) => {
           })
           .catch(err => {
             console.warn('Fetch failed:', err);
+            // Return a proper error response for API requests
+            if (event.request.url.includes('/api/')) {
+              return new Response(JSON.stringify({ error: 'Network error occurred' }), {
+                status: 408,
+                statusText: 'Network error',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+            }
             return new Response('Network error occurred', {
               status: 408,
               statusText: 'Network error'
