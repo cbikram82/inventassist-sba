@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Plus, Package, AlertTriangle, Printer } from "lucide-react"
+import { Loader2, Plus, Package, AlertTriangle, Printer, ShoppingCart } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   Table,
@@ -96,6 +96,10 @@ export default function EventItemsPage() {
   const [currentCheckoutTask, setCurrentCheckoutTask] = useState<CheckoutTaskState | null>(null);
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
   const [currentCheckinItems, setCurrentCheckinItems] = useState<CheckoutItemWithDetails[]>([]);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<ProcessedEventItem[]>([]);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
 
   // Add useEffect to fetch data when selectedEvent changes
   useEffect(() => {
@@ -493,7 +497,7 @@ export default function EventItemsPage() {
               </div>
 
               <div className="flex gap-4">
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                   <DialogTrigger asChild>
                     <Button disabled={!selectedEvent}>
                       <Plus className="h-4 w-4 mr-2" />
