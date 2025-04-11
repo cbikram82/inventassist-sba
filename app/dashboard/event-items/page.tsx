@@ -338,20 +338,11 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
-      // Get event ID from event name
-      const { data: event, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('name', selectedEvent)
-        .single();
-
-      if (eventError) throw eventError;
-
       // Create checkout task
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
         .insert({
-          event_id: event.id,
+          event_name: selectedEvent,
           type: 'checkout',
           status: 'pending',
           created_by: user.id
@@ -369,7 +360,7 @@ export default function EventItemsPage() {
         item_id: eventItem.item_id,
         event_item_id: eventItem.id,
         original_quantity: eventItem.quantity,
-        actual_quantity: eventItem.quantity,
+        actual_quantity: eventItem.remainingQuantity,
         status: 'pending' as CheckoutItemStatus,
         reason: null,
         checked_by: null,
@@ -422,15 +413,6 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
-      // Get event ID from event name
-      const { data: event, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('name', selectedEvent)
-        .single();
-
-      if (eventError) throw eventError;
-
       // Get checked out items for the selected event
       const { data: checkoutItems, error } = await supabase
         .from('checkout_items')
@@ -450,7 +432,7 @@ export default function EventItemsPage() {
           )
         `)
         .eq('status', 'checked')
-        .eq('event_item.event_id', event.id);
+        .eq('event_item.event_name', selectedEvent);
 
       if (error) throw error;
 
@@ -466,7 +448,7 @@ export default function EventItemsPage() {
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
         .insert({
-          event_id: event.id,
+          event_name: selectedEvent,
           type: 'checkin',
           status: 'pending',
           created_by: user.id
