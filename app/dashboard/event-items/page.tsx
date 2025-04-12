@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
-import { Loader2, Plus, Package, AlertTriangle, Printer, ShoppingCart } from "lucide-react"
+import { Loader2, Plus, Package, AlertTriangle, Printer } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   Table,
@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils"
 import { CheckoutDialog } from '@/components/checkout-dialog';
 import { createCheckoutTask, getCheckoutTask } from '@/app/actions';
-import { CheckoutItemWithDetails, CheckoutTaskState, CheckoutTaskType, CheckoutItemStatus } from '@/types/checkout';
+import { CheckoutItemWithDetails, CheckoutTaskState, CheckoutTaskType } from '@/types/checkout';
 import { useUser } from '@/lib/useUser';
 import { CheckinDialog } from '@/components/checkin-dialog';
 
@@ -37,15 +37,14 @@ interface Item {
 
 interface CheckoutItem {
   id: string;
-  actual_quantity: number;
   status: 'checked' | 'checked_in' | 'cancelled';
+  actual_quantity: number;
   checked_by: string;
   checked_at: string;
   reason: string | null;
   user: {
-    id: string;
     name: string;
-  } | null;
+  };
 }
 
 interface ProcessedEventItem {
@@ -59,10 +58,9 @@ interface ProcessedEventItem {
   item: {
     id: string;
     name: string;
-    description: string;
     category: string;
     quantity: number;
-  } | null;
+  };
   checkout_items: CheckoutItem[];
   remainingQuantity: number;
   is_checked_out: boolean;
@@ -70,7 +68,6 @@ interface ProcessedEventItem {
   checkedInQuantity: number;
   last_checked_by?: string;
   last_checked_at?: string;
-  processingError?: boolean;
 }
 
 interface Event {
@@ -99,11 +96,6 @@ export default function EventItemsPage() {
   const [currentCheckoutTask, setCurrentCheckoutTask] = useState<CheckoutTaskState | null>(null);
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false);
   const [currentCheckinItems, setCurrentCheckinItems] = useState<CheckoutItemWithDetails[]>([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [selectedItems, setSelectedItems] = useState<CheckoutItemWithDetails[]>([]);
-  const [currentTaskId, setCurrentTaskId] = useState<string | undefined>(undefined);
-  const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
-  const [isAddingItem, setIsAddingItem] = useState(false);
 
   // Add useEffect to fetch data when selectedEvent changes
   useEffect(() => {
@@ -117,48 +109,26 @@ export default function EventItemsPage() {
     }
   }, [selectedEvent]);
 
-  // Add useEffect to fetch items when component mounts
-  useEffect(() => {
-    const fetchInitialItems = async () => {
-      try {
-        const { data: itemsData, error: itemsError } = await supabase
-          .from('items')
-          .select('*')
-          .order('name');
-
-        if (itemsError) throw itemsError;
-        setItems(itemsData || []);
-      } catch (err) {
-        console.error('Error fetching initial items:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch items');
-      }
-    };
-
-    fetchInitialItems();
-  }, []);
-
   const fetchData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
+      // Fetch all items first
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
-        .select('*');
-      if (itemsError) throw itemsError;
-      setItems(itemsData || []);
+        .select('*')
+        .order('name');
 
+      if (itemsError) throw itemsError;
+      setItems(itemsData || []); // Set items early
+
+      // Fetch event items with all necessary details
       const { data: eventItemsData, error: eventItemsError } = await supabase
         .from('event_items')
         .select(`
-          id,
-          item_id,
-          event_name,
-          item_name,
-          quantity,
-          created_at,
-          updated_at,
-          items (
+          *,
+          item:items (
             id,
             name,
             description,
@@ -171,61 +141,79 @@ export default function EventItemsPage() {
             status,
             checked_by,
             checked_at,
-            reason,
-            user (
+            user:users!checkout_items_checked_by_fkey (
               id,
               name
             )
           )
-        `);
+        `)
+        .eq('event_name', selectedEvent)
+        .order('created_at', { ascending: false });
 
       if (eventItemsError) throw eventItemsError;
 
+      // Process the event items safely
       const processedEventItems = (eventItemsData || []).map(eventItem => {
-        const checkoutItems = (eventItem.checkout_items || []).map(item => ({
-          ...item,
-          user: item.user || null
-        }));
+        try {
+          // Ensure checkout_items is an array
+          const checkoutItems = Array.isArray(eventItem.checkout_items) ? eventItem.checkout_items : [];
+          
+          // Calculate checked out and checked in quantities
+          const checkedOutQuantity = checkoutItems
+            .filter((ci: CheckoutItem) => ci.status === 'checked')
+            .reduce((sum: number, ci: CheckoutItem) => sum + (Number(ci.actual_quantity) || 0), 0);
 
-        const checkedOutQuantity = checkoutItems
-          .filter(item => item.status === 'checked')
-          .reduce((sum, item) => sum + item.actual_quantity, 0);
+          const checkedInQuantity = checkoutItems
+            .filter((ci: CheckoutItem) => ci.status === 'checked_in')
+            .reduce((sum: number, ci: CheckoutItem) => sum + (Number(ci.actual_quantity) || 0), 0);
 
-        const checkedInQuantity = checkoutItems
-          .filter(item => item.status === 'checked_in')
-          .reduce((sum, item) => sum + item.actual_quantity, 0);
+          // Calculate remaining quantity based on original quantity and checkouts/checkins
+          const remainingQuantity = (Number(eventItem.quantity) || 0) - (checkedOutQuantity - checkedInQuantity);
 
-        const remainingQuantity = eventItem.quantity - checkedOutQuantity + checkedInQuantity;
+          // Get last checkout/check-in details safely
+          const lastCheckout = checkoutItems
+            .filter((ci: CheckoutItem) => ci.status === 'checked' && ci.checked_at)
+            .sort((a: CheckoutItem, b: CheckoutItem) => 
+              (new Date(b.checked_at).getTime() || 0) - (new Date(a.checked_at).getTime() || 0)
+            )[0];
 
-        const lastCheckout = checkoutItems
-          .filter(item => item.status === 'checked')
-          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
+          const lastCheckin = checkoutItems
+            .filter((ci: CheckoutItem) => ci.status === 'checked_in' && ci.checked_at)
+            .sort((a: CheckoutItem, b: CheckoutItem) => 
+              (new Date(b.checked_at).getTime() || 0) - (new Date(a.checked_at).getTime() || 0)
+            )[0];
 
-        const lastCheckin = checkoutItems
-          .filter(item => item.status === 'checked_in')
-          .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0];
-
-        return {
-          ...eventItem,
-          item: eventItem.items || null,
-          checkout_items: checkoutItems,
-          remainingQuantity,
-          is_checked_out: checkedOutQuantity > 0,
-          checkedOutQuantity,
-          checkedInQuantity,
-          last_checked_by: lastCheckout?.user?.name || lastCheckin?.user?.name,
-          last_checked_at: lastCheckout?.checked_at || lastCheckin?.checked_at,
-          processingError: false
-        };
+          return {
+            ...eventItem,
+            checkout_items: checkoutItems, // Ensure it's always an array
+            remainingQuantity,
+            checkedOutQuantity,
+            checkedInQuantity,
+            lastCheckout, // Can be undefined
+            lastCheckin,  // Can be undefined
+            is_checked_out: checkedOutQuantity > checkedInQuantity,
+            last_checked_by: lastCheckout?.user?.name || lastCheckin?.user?.name || null,
+            last_checked_at: lastCheckout?.checked_at || lastCheckin?.checked_at || null
+          };
+        } catch (processingError) {
+          console.error(`Error processing eventItem ID ${eventItem.id} (${eventItem.item_name}):`, processingError);
+          // Return the original item or a structure indicating error, avoid crashing the whole map
+          return {
+            ...eventItem,
+            checkout_items: Array.isArray(eventItem.checkout_items) ? eventItem.checkout_items : [],
+            processingError: true // Add a flag to indicate issue
+          };
+        }
       });
 
       setEventItems(processedEventItems);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
       toast({
-        title: 'Error',
-        description: 'Failed to fetch data',
-        variant: 'destructive',
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to fetch data",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -248,7 +236,6 @@ export default function EventItemsPage() {
     }
 
     try {
-      setIsAddingItem(true);
       const selectedItemData = items.find(item => item.id === selectedItem)
       if (!selectedItemData) throw new Error("Item not found")
 
@@ -291,8 +278,6 @@ export default function EventItemsPage() {
         description: error instanceof Error ? error.message : "Failed to add item",
         variant: "destructive",
       })
-    } finally {
-      setIsAddingItem(false);
     }
   }
 
@@ -321,68 +306,49 @@ export default function EventItemsPage() {
     }
   }
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (type: CheckoutTaskType) => {
     if (!selectedEvent || !user?.id) return;
 
     try {
-      // Get event ID from event name
-      const { data: event, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('name', selectedEvent)
-        .single();
+      // Get the session token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
 
-      if (eventError) throw eventError;
+      // Call the API route to create checkout task
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          eventName: selectedEvent,
+          type,
+        }),
+      });
 
-      // Create checkout task
-      const { data: task, error: taskError } = await supabase
-        .from('checkout_tasks')
-        .insert({
-          event_id: event.id,
-          type: 'checkout',
-          status: 'pending',
-          created_by: user.id
-        })
-        .select()
-        .single();
+      if (!response.ok) {
+        throw new Error('Failed to create checkout task');
+      }
 
-      if (taskError) throw taskError;
+      const taskWithItems = await response.json();
 
-      // Set the current task and items
-      setCurrentTaskId(task.id);
-      
-      // Map event items to checkout items
-      const checkoutItems = eventItems
-        .filter(eventItem => eventItem.item) // Only include items that have valid item data
-        .map(eventItem => ({
-          id: eventItem.id,
-          checkout_task_id: task.id,
-          item_id: eventItem.item_id,
-          event_item_id: eventItem.id,
-          original_quantity: eventItem.quantity,
-          actual_quantity: eventItem.remainingQuantity,
-          status: 'pending' as CheckoutItemStatus,
-          reason: null,
-          checked_by: null,
-          checked_at: null,
-          returned_at: null,
-          item: {
-            name: eventItem.item?.name || '',
-            category: eventItem.item?.category || '',
-            quantity: eventItem.item?.quantity || 0
-          },
-          event_item: {
-            quantity: eventItem.quantity
-          }
-        }));
+      if (taskWithItems && taskWithItems.checkout_items) {
+        setCurrentCheckoutTask({
+          id: taskWithItems.id,
+          items: taskWithItems.checkout_items,
+          type
+        });
 
-      setSelectedItems(checkoutItems);
-      setShowCheckoutDialog(true);
+        setIsCheckoutDialogOpen(true);
+      }
     } catch (error) {
-      console.error('Error creating checkout:', error);
+      console.error('Error creating checkout task:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create checkout",
+        description: error instanceof Error ? error.message : "Failed to create checkout task",
         variant: "destructive",
       });
     }
@@ -412,96 +378,47 @@ export default function EventItemsPage() {
   };
 
   const handleCheckin = async () => {
-    if (!selectedEvent || !user?.id) return;
-
     try {
-      // Get event ID from event name
-      const { data: event, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('name', selectedEvent)
-        .single();
-
-      if (eventError) throw eventError;
-
       // Get checked out items for the selected event
       const { data: checkoutItems, error } = await supabase
         .from('checkout_items')
         .select(`
           *,
-          event_item:event_items (
+          item:items (
             id,
-            item_id,
-            item_name,
-            quantity,
-            item:items (
-              id,
-              name,
-              category,
-              quantity
-            )
+            name,
+            category,
+            quantity
+          ),
+          checkout_task:checkout_tasks (
+            event_name
           )
         `)
         .eq('status', 'checked')
-        .eq('event_item.event_id', event.id);
+        .eq('checkout_task.event_name', selectedEvent)
 
-      if (error) throw error;
+      if (error) throw error
 
       if (!checkoutItems || checkoutItems.length === 0) {
         toast({
           title: "No items to check in",
           description: "There are no checked out items for this event",
-        });
-        return;
+        })
+        return
       }
 
-      // Create checkout task for checkin
-      const { data: task, error: taskError } = await supabase
-        .from('checkout_tasks')
-        .insert({
-          event_id: event.id,
-          type: 'checkin',
-          status: 'pending',
-          created_by: user.id
-        })
-        .select()
-        .single();
-
-      if (taskError) throw taskError;
-
-      // Set the current task and items
-      setCurrentTaskId(task.id);
-      setSelectedItems(checkoutItems.map(item => ({
-        id: item.id,
-        checkout_task_id: task.id,
-        item_id: item.event_item.item_id,
-        event_item_id: item.event_item.id,
-        original_quantity: item.event_item.quantity,
-        actual_quantity: item.quantity,
-        status: 'checked' as CheckoutItemStatus,
-        reason: null,
-        checked_by: null,
-        checked_at: null,
-        returned_at: null,
-        item: {
-          name: item.event_item.item.name,
-          category: item.event_item.item.category,
-          quantity: item.event_item.item.quantity
-        },
-        event_item: {
-          quantity: item.event_item.quantity
-        }
-      })));
+      // Set the items for check-in
+      setCurrentCheckinItems(checkoutItems);
       setIsCheckinDialogOpen(true);
     } catch (error) {
-      console.error('Error preparing checkin:', error);
+      console.error('Error preparing checkin:', error)
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to prepare checkin",
         variant: "destructive",
-      });
+      })
     }
-  };
+  }
 
   const handleCheckinComplete = async () => {
     try {
@@ -545,223 +462,226 @@ export default function EventItemsPage() {
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Event Items</h1>
-        <div className="flex items-center gap-4">
-          <Select
-            value={selectedEvent}
-            onValueChange={setSelectedEvent}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select an event" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableEvents.map((event) => (
-                <SelectItem key={event} value={event}>
-                  {event}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button 
-            onClick={() => setShowAddDialog(true)} 
-            className="w-full sm:w-auto"
-            disabled={!selectedEvent}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
-          <Button 
-            onClick={handleCheckout}
-            className="w-full sm:w-auto"
-            disabled={!selectedEvent}
-          >
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Checkout
-          </Button>
-          <Button 
-            onClick={handleCheckin}
-            className="w-full sm:w-auto"
-            disabled={!selectedEvent}
-          >
-            <Package className="h-4 w-4 mr-2" />
-            Check In
-          </Button>
+    <div className="space-y-4 p-3 md:space-y-6 md:p-6">
+      <div className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Event Items List</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage items for different events
+          </p>
         </div>
-      </div>
 
-      {selectedEvent ? (
-        <>
-          {/* Desktop View */}
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Last Action</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {eventItems.map((eventItem) => (
-                  <TableRow key={eventItem.id}>
-                    <TableCell>{eventItem.item?.name}</TableCell>
-                    <TableCell>{eventItem.item?.category}</TableCell>
-                    <TableCell>{eventItem.quantity}</TableCell>
-                    <TableCell>{eventItem.remainingQuantity}</TableCell>
-                    <TableCell>
-                      {eventItem.last_checked_by && (
-                        <div className="text-sm">
-                          <div className="font-medium">{eventItem.last_checked_by}</div>
-                          <div className="text-gray-500">
-                            {eventItem.last_checked_at ? new Date(eventItem.last_checked_at).toLocaleString() : ''}
-                          </div>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteItem(eventItem.id)}
-                        disabled={eventItem.remainingQuantity < eventItem.quantity}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Event Selection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEvents.map(event => (
+                      <SelectItem key={event} value={event}>
+                        {event}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Mobile View */}
-          <div className="md:hidden space-y-4">
-            {eventItems.map((eventItem) => (
-              <Card key={eventItem.id} className="p-4">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <h3 className="font-semibold text-lg">{eventItem.item?.name}</h3>
-                      <p className="text-sm text-gray-500">{eventItem.item?.category}</p>
+              <div className="flex gap-4">
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button disabled={!selectedEvent}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Item
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Item to Event</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="item">Item</Label>
+                        <Select value={selectedItem} onValueChange={setSelectedItem}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {items.map(item => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name} ({item.quantity} available)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="1"
+                          value={quantity}
+                          onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <Button onClick={handleAddItem}>Add Item</Button>
                     </div>
-                    <div className="text-right space-y-1">
-                      <p className="text-sm font-medium">Quantity: {eventItem.quantity}</p>
-                      <p className="text-sm font-medium">Remaining: {eventItem.remainingQuantity}</p>
-                    </div>
-                  </div>
-                  {eventItem.last_checked_by && (
-                    <div className="text-sm text-gray-500">
-                      <div>Last action by: {eventItem.last_checked_by}</div>
-                      <div>On: {eventItem.last_checked_at ? new Date(eventItem.last_checked_at).toLocaleString() : ''}</div>
-                    </div>
-                  )}
-                  <div className="flex justify-end">
+                  </DialogContent>
+                </Dialog>
+
+                {selectedEvent && (
+                  <div className="flex gap-4">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteItem(eventItem.id)}
-                      disabled={eventItem.remainingQuantity < eventItem.quantity}
-                      className="w-full sm:w-auto"
+                      onClick={() => handleCheckout('checkout')}
+                      disabled={!selectedEvent || filteredEventItems.length === 0}
                     >
-                      Delete
+                      Check Out Items
+                    </Button>
+                    <Button
+                      onClick={() => handleCheckout('checkin')}
+                      disabled={!selectedEvent || filteredEventItems.length === 0}
+                    >
+                      Check In Items
                     </Button>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          Please select an event to view and manage items
-        </div>
-      )}
-
-      {/* Add Item Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Add Item to {selectedEvent}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            handleAddItem();
-          }} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="item">Item</Label>
-              <Select
-                value={selectedItem}
-                onValueChange={setSelectedItem}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select an item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} ({item.quantity} available)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value))}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowAddDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isAddingItem}>
-                {isAddingItem ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  "Add Item"
                 )}
-              </Button>
+              </div>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
 
-      {/* Checkout Dialog */}
-      <CheckoutDialog
-        isOpen={showCheckoutDialog}
-        onClose={() => setShowCheckoutDialog(false)}
-        items={selectedItems}
-        onComplete={handleCheckoutComplete}
-        taskId={currentTaskId}
-        user={user}
-        type="checkout"
-      />
+        {currentCheckoutTask && currentCheckoutTask.type === 'checkout' && (
+          <CheckoutDialog
+            isOpen={isCheckoutDialogOpen}
+            onClose={() => {
+              setIsCheckoutDialogOpen(false);
+              setCurrentCheckoutTask(null);
+            }}
+            taskId={currentCheckoutTask.id}
+            items={currentCheckoutTask.items}
+            type="checkout"
+            onComplete={handleCheckoutComplete}
+            user={user}
+          />
+        )}
 
-      {/* Checkin Dialog */}
-      <CheckinDialog
-        isOpen={isCheckinDialogOpen}
-        onClose={() => setIsCheckinDialogOpen(false)}
-        items={selectedItems}
-        onComplete={handleCheckinComplete}
-        taskId={currentTaskId || ''}
-      />
+        {currentCheckoutTask && currentCheckoutTask.type === 'checkin' && (
+          <CheckinDialog
+            isOpen={isCheckoutDialogOpen}
+            onClose={() => {
+              setIsCheckoutDialogOpen(false);
+              setCurrentCheckoutTask(null);
+            }}
+            items={currentCheckoutTask.items}
+            onComplete={handleCheckoutComplete}
+            taskId={currentCheckoutTask.id}
+          />
+        )}
+
+        {currentCheckinItems.length > 0 && (
+          <CheckinDialog
+            isOpen={isCheckinDialogOpen}
+            onClose={() => {
+              setIsCheckinDialogOpen(false);
+              setCurrentCheckinItems([]);
+            }}
+            items={currentCheckinItems}
+            onComplete={handleCheckinComplete}
+            taskId={currentCheckinItems[0]?.checkout_task_id}
+          />
+        )}
+
+        <Card className="print:shadow-none print:border-0">
+          <CardHeader className="print:hidden">
+            <CardTitle>Event Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {filteredEventItems.length > 0 ? (
+                <>
+                  <div className="hidden print:block text-center mb-4">
+                    <h2 className="text-xl font-bold">{selectedEvent} Items List</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Generated on {new Date().toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item Name</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead>Remaining Quantity</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Checked By</TableHead>
+                        <TableHead>Last Checked At</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEventItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.item_name}</TableCell>
+                          <TableCell>{item.event_name}</TableCell>
+                          <TableCell>{item.remainingQuantity}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "px-2 py-1 rounded-full text-xs",
+                              item.is_checked_out ? "bg-green-100 text-green-800" : 
+                              item.checkout_items?.some(ci => ci.status === 'checked_in') ? "bg-blue-100 text-blue-800" : 
+                              "bg-gray-100 text-gray-800"
+                            )}>
+                              {item.is_checked_out ? "Checked Out" : 
+                               item.checkout_items?.some(ci => ci.status === 'checked_in') ? "Checked In" : 
+                               "Available"}
+                            </span>
+                          </TableCell>
+                          <TableCell>{item.last_checked_by || "-"}</TableCell>
+                          <TableCell>
+                            {item.last_checked_at ? new Date(item.last_checked_at).toLocaleString() : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteItem(item.id)}
+                            >
+                              Delete
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground print:hidden">
+                  No items found for {selectedEvent}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <style jsx global>{`
+          @media print {
+            body {
+              padding: 20px;
+            }
+            .no-print {
+              display: none;
+            }
+            .print-only {
+              display: block;
+            }
+          }
+        `}</style>
+      </div>
     </div>
   )
 } 
