@@ -366,10 +366,10 @@ export default function EventItemsPage() {
       
       // Map event items to checkout items
       const checkoutItems = eventItems.map(eventItem => ({
-        id: eventItem.id,
+        id: `temp_${eventItem.id}`, // Temporary ID that will be replaced by the database
         checkout_task_id: task.id,
-        item_id: eventItem.item_id,
-        event_item_id: eventItem.id,
+        item_id: eventItem.item.id,
+        event_item_id: eventItem.id, // This is the correct event_item_id from the event_items table
         original_quantity: eventItem.quantity,
         actual_quantity: eventItem.remainingQuantity,
         status: 'pending' as CheckoutItemStatus,
