@@ -140,7 +140,6 @@ export function LoginForm({ initialError }: LoginFormProps) {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Welcome back</CardTitle>
         <CardDescription>Sign in to your account to continue</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>

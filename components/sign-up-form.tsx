@@ -97,7 +97,6 @@ export function SignUpForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Create an account</CardTitle>
         <CardDescription>Enter your email below to create your account</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
