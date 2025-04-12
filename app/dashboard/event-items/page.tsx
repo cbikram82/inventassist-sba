@@ -338,11 +338,20 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
+      // Get event ID from event name
+      const { data: event, error: eventError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('name', selectedEvent)
+        .single();
+
+      if (eventError) throw eventError;
+
       // Create checkout task
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
         .insert({
-          event_name: selectedEvent,
+          event_id: event.id,
           type: 'checkout',
           status: 'pending',
           created_by: user.id
