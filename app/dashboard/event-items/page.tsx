@@ -478,188 +478,189 @@ export default function EventItemsPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 md:p-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-4 p-3 md:space-y-6 md:p-6">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Event Items</h1>
-          <p className="text-muted-foreground">
-            Manage items for {selectedEvent}
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight">Event Items List</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage items for different events
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddDialog(true)}
-            className="w-full md:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Items
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowCheckoutDialog(true)}
-            className="w-full md:w-auto"
-          >
-            <ArrowUpRight className="h-4 w-4 mr-2" />
-            Checkout Items
-          </Button>
-        </div>
-      </div>
 
-      <div className="rounded-md border">
-        <div className="relative w-full overflow-auto">
-          <table className="w-full caption-bottom text-sm">
-            <thead className="[&_tr]:border-b">
-              <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  Item
-                </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  Category
-                </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  Quantity
-                </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  Remaining
-                </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  Status
-                </th>
-                <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="[&_tr:last-child]:border-0">
-              {filteredEventItems.map((eventItem) => {
-                const item = items.find(i => i.id === eventItem.item_id);
-                const category = categories?.find((c: Category) => c.id === item?.category);
-                const checkoutItems = checkoutItemsData?.filter((ci: CheckoutItem) => ci.event_item_id === eventItem.id) || [];
-                const checkedOutQuantity = checkoutItems
-                  .filter((ci: CheckoutItem) => ci.status === 'checked')
-                  .reduce((sum: number, ci: CheckoutItem) => sum + (ci.quantity || 0), 0);
-                const checkedInQuantity = checkoutItems
-                  .filter((ci: CheckoutItem) => ci.status === 'checked_in')
-                  .reduce((sum: number, ci: CheckoutItem) => sum + (ci.quantity || 0), 0);
-                const remainingQuantity = (Number(eventItem.quantity) || 0) - (checkedOutQuantity - checkedInQuantity);
+        <Card>
+          <CardHeader>
+            <CardTitle>Event Selection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEvents.map(event => (
+                      <SelectItem key={event} value={event}>
+                        {event}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                return (
-                  <tr key={eventItem.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{item?.name}</span>
-                        <span className="text-sm text-muted-foreground md:hidden">
-                          {category?.name} • Qty: {eventItem.quantity} • Remaining: {remainingQuantity}
-                        </span>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button disabled={!selectedEvent} className="w-full sm:w-auto">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Item
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Add Item to Event</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="item">Item</Label>
+                        <Select value={selectedItem} onValueChange={setSelectedItem}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {items.map(item => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name} ({item.quantity} available)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    </td>
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 hidden md:table-cell">
-                      {category?.name}
-                    </td>
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 hidden md:table-cell">
-                      {eventItem.quantity}
-                    </td>
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0 hidden md:table-cell">
-                      {remainingQuantity}
-                    </td>
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                      <Badge variant={remainingQuantity > 0 ? "default" : "destructive"}>
-                        {remainingQuantity > 0 ? "Available" : "Checked Out"}
-                      </Badge>
-                    </td>
-                    <td className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedEventItem(eventItem);
-                              setShowEditDialog(true);
-                            }}
-                          >
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedEventItem(eventItem);
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <div>
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="1"
+                          value={quantity}
+                          onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <Button onClick={handleAddItem}>Add Item</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {selectedEvent && (
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <Button
+                      onClick={() => handleCheckout('checkout')}
+                      disabled={!selectedEvent || filteredEventItems.length === 0}
+                      className="w-full sm:w-auto"
+                    >
+                      Check Out Items
+                    </Button>
+                    <Button
+                      onClick={() => handleCheckout('checkin')}
+                      disabled={!selectedEvent || filteredEventItems.length === 0}
+                      className="w-full sm:w-auto"
+                    >
+                      Check In Items
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="print:shadow-none print:border-0">
+          <CardHeader className="print:hidden">
+            <CardTitle>Event Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {filteredEventItems.length > 0 ? (
+                <>
+                  <div className="hidden print:block text-center mb-4">
+                    <h2 className="text-xl font-bold">{selectedEvent} Items List</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Generated on {new Date().toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">Item Name</TableHead>
+                          <TableHead className="whitespace-nowrap">Event</TableHead>
+                          <TableHead className="whitespace-nowrap">Remaining Quantity</TableHead>
+                          <TableHead className="whitespace-nowrap">Status</TableHead>
+                          <TableHead className="whitespace-nowrap">Last Checked By</TableHead>
+                          <TableHead className="whitespace-nowrap">Last Checked At</TableHead>
+                          <TableHead className="whitespace-nowrap">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredEventItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="whitespace-nowrap">{item.item_name}</TableCell>
+                            <TableCell className="whitespace-nowrap">{item.event_name}</TableCell>
+                            <TableCell className="whitespace-nowrap">{item.remainingQuantity}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <span className={cn(
+                                "px-2 py-1 rounded-full text-xs",
+                                item.is_checked_out ? "bg-green-100 text-green-800" : 
+                                item.checkout_items?.some(ci => ci.status === 'checked_in') ? "bg-blue-100 text-blue-800" : 
+                                "bg-gray-100 text-gray-800"
+                              )}>
+                                {item.is_checked_out ? "Checked Out" : 
+                                 item.checkout_items?.some(ci => ci.status === 'checked_in') ? "Checked In" : 
+                                 "Available"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{item.last_checked_by || "-"}</TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {item.last_checked_at ? new Date(item.last_checked_at).toLocaleString() : "-"}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteItem(item.id)}
+                              >
+                                Delete
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground print:hidden">
+                  No items found for {selectedEvent}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <style jsx global>{`
+          @media print {
+            body {
+              padding: 20px;
+            }
+            .no-print {
+              display: none;
+            }
+            .print-only {
+              display: block;
+            }
+          }
+        `}</style>
       </div>
-
-      {currentCheckoutTask && currentCheckoutTask.type === 'checkout' && (
-        <CheckoutDialog
-          isOpen={isCheckoutDialogOpen}
-          onClose={() => {
-            setIsCheckoutDialogOpen(false);
-            setCurrentCheckoutTask(null);
-          }}
-          taskId={currentCheckoutTask.id}
-          items={currentCheckoutTask.items}
-          type="checkout"
-          onComplete={handleCheckoutComplete}
-          user={user}
-        />
-      )}
-
-      {currentCheckoutTask && currentCheckoutTask.type === 'checkin' && (
-        <CheckinDialog
-          isOpen={isCheckoutDialogOpen}
-          onClose={() => {
-            setIsCheckoutDialogOpen(false);
-            setCurrentCheckoutTask(null);
-          }}
-          items={currentCheckoutTask.items}
-          onComplete={handleCheckoutComplete}
-          taskId={currentCheckoutTask.id}
-        />
-      )}
-
-      {currentCheckinItems.length > 0 && (
-        <CheckinDialog
-          isOpen={isCheckinDialogOpen}
-          onClose={() => {
-            setIsCheckinDialogOpen(false);
-            setCurrentCheckinItems([]);
-          }}
-          items={currentCheckinItems}
-          onComplete={handleCheckinComplete}
-          taskId={currentCheckinItems[0]?.checkout_task_id}
-        />
-      )}
-
-      <style jsx global>{`
-        @media print {
-          body {
-            padding: 20px;
-          }
-          .no-print {
-            display: none;
-          }
-          .print-only {
-            display: block;
-          }
-        }
-      `}</style>
     </div>
   )
 } 
