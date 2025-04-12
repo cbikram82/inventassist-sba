@@ -647,6 +647,47 @@ export default function EventItemsPage() {
           </CardContent>
         </Card>
 
+        {currentCheckoutTask && currentCheckoutTask.type === 'checkout' && (
+          <CheckoutDialog
+            isOpen={isCheckoutDialogOpen}
+            onClose={() => {
+              setIsCheckoutDialogOpen(false);
+              setCurrentCheckoutTask(null);
+            }}
+            taskId={currentCheckoutTask.id}
+            items={currentCheckoutTask.items}
+            type="checkout"
+            onComplete={handleCheckoutComplete}
+            user={user}
+          />
+        )}
+
+        {currentCheckoutTask && currentCheckoutTask.type === 'checkin' && (
+          <CheckinDialog
+            isOpen={isCheckoutDialogOpen}
+            onClose={() => {
+              setIsCheckoutDialogOpen(false);
+              setCurrentCheckoutTask(null);
+            }}
+            items={currentCheckoutTask.items}
+            onComplete={handleCheckoutComplete}
+            taskId={currentCheckoutTask.id}
+          />
+        )}
+
+        {currentCheckinItems.length > 0 && (
+          <CheckinDialog
+            isOpen={isCheckinDialogOpen}
+            onClose={() => {
+              setIsCheckinDialogOpen(false);
+              setCurrentCheckinItems([]);
+            }}
+            items={currentCheckinItems}
+            onComplete={handleCheckinComplete}
+            taskId={currentCheckinItems[0]?.checkout_task_id}
+          />
+        )}
+
         <style jsx global>{`
           @media print {
             body {
