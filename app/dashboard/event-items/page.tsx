@@ -363,10 +363,12 @@ export default function EventItemsPage() {
 
       // Set the current task and items
       setCurrentTaskId(task.id);
-      setSelectedItems(eventItems.map(eventItem => ({
+      
+      // Map event items to checkout items
+      const checkoutItems = eventItems.map(eventItem => ({
         id: eventItem.id,
         checkout_task_id: task.id,
-        item_id: eventItem.item_id,
+        item_id: eventItem.item.id,
         event_item_id: eventItem.id,
         original_quantity: eventItem.quantity,
         actual_quantity: eventItem.remainingQuantity,
@@ -383,7 +385,10 @@ export default function EventItemsPage() {
         event_item: {
           quantity: eventItem.quantity
         }
-      })));
+      }));
+
+      console.log('Setting checkout items:', checkoutItems);
+      setSelectedItems(checkoutItems);
       setShowCheckoutDialog(true);
     } catch (error) {
       console.error('Error creating checkout:', error);
