@@ -338,20 +338,11 @@ export default function EventItemsPage() {
     if (!selectedEvent || !user?.id) return;
 
     try {
-      // Get event ID from event name
-      const { data: event, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('name', selectedEvent)
-        .single();
-
-      if (eventError) throw eventError;
-
       // Create checkout task
       const { data: task, error: taskError } = await supabase
         .from('checkout_tasks')
         .insert({
-          event_id: event.id,
+          event_name: selectedEvent,
           type: 'checkout',
           status: 'pending',
           created_by: user.id
@@ -363,13 +354,11 @@ export default function EventItemsPage() {
 
       // Set the current task and items
       setCurrentTaskId(task.id);
-      
-      // Map event items to checkout items
-      const checkoutItems = eventItems.map(eventItem => ({
-        id: `temp_${eventItem.id}`, // Temporary ID that will be replaced by the database
+      setSelectedItems(eventItems.map(eventItem => ({
+        id: eventItem.id,
         checkout_task_id: task.id,
-        item_id: eventItem.item.id,
-        event_item_id: eventItem.id, // This is the correct event_item_id from the event_items table
+        item_id: eventItem.item_id,
+        event_item_id: eventItem.id,
         original_quantity: eventItem.quantity,
         actual_quantity: eventItem.remainingQuantity,
         status: 'pending' as CheckoutItemStatus,
@@ -385,10 +374,7 @@ export default function EventItemsPage() {
         event_item: {
           quantity: eventItem.quantity
         }
-      }));
-
-      console.log('Setting checkout items:', checkoutItems);
-      setSelectedItems(checkoutItems);
+      })));
       setShowCheckoutDialog(true);
     } catch (error) {
       console.error('Error creating checkout:', error);
