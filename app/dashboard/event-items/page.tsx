@@ -158,7 +158,7 @@ export default function EventItemsPage() {
           quantity,
           created_at,
           updated_at,
-          items!event_items_item_id_fkey (
+          items (
             id,
             name,
             description,
@@ -172,7 +172,7 @@ export default function EventItemsPage() {
             checked_by,
             checked_at,
             reason,
-            user:users!checkout_items_checked_by_fkey (
+            user (
               id,
               name
             )
@@ -184,18 +184,18 @@ export default function EventItemsPage() {
       const processedEventItems = (eventItemsData || []).map(eventItem => {
         const checkoutItems = (eventItem.checkout_items || []).map(item => ({
           ...item,
-          user: item.user?.[0] || null
+          user: item.user || null
         }));
 
         const checkedOutQuantity = checkoutItems
           .filter(item => item.status === 'checked')
-          .reduce((sum, item) => sum + (Number(item.actual_quantity) || 0), 0);
+          .reduce((sum, item) => sum + item.actual_quantity, 0);
 
         const checkedInQuantity = checkoutItems
           .filter(item => item.status === 'checked_in')
-          .reduce((sum, item) => sum + (Number(item.actual_quantity) || 0), 0);
+          .reduce((sum, item) => sum + item.actual_quantity, 0);
 
-        const remainingQuantity = (Number(eventItem.quantity) || 0) - checkedOutQuantity + checkedInQuantity;
+        const remainingQuantity = eventItem.quantity - checkedOutQuantity + checkedInQuantity;
 
         const lastCheckout = checkoutItems
           .filter(item => item.status === 'checked')
@@ -207,7 +207,7 @@ export default function EventItemsPage() {
 
         return {
           ...eventItem,
-          item: eventItem.items?.[0] || null,
+          item: eventItem.items || null,
           checkout_items: checkoutItems,
           remainingQuantity,
           is_checked_out: checkedOutQuantity > 0,
@@ -352,29 +352,30 @@ export default function EventItemsPage() {
       setCurrentTaskId(task.id);
       
       // Map event items to checkout items
-      const checkoutItems = eventItems.map(eventItem => ({
-        id: eventItem.id,
-        checkout_task_id: task.id,
-        item_id: eventItem.item_id,
-        event_item_id: eventItem.id,
-        original_quantity: eventItem.quantity,
-        actual_quantity: eventItem.remainingQuantity,
-        status: 'pending' as CheckoutItemStatus,
-        reason: null,
-        checked_by: null,
-        checked_at: null,
-        returned_at: null,
-        item: {
-          name: eventItem.item.name,
-          category: eventItem.item.category,
-          quantity: eventItem.item.quantity
-        },
-        event_item: {
-          quantity: eventItem.quantity
-        }
-      }));
+      const checkoutItems = eventItems
+        .filter(eventItem => eventItem.item) // Only include items that have valid item data
+        .map(eventItem => ({
+          id: eventItem.id,
+          checkout_task_id: task.id,
+          item_id: eventItem.item_id,
+          event_item_id: eventItem.id,
+          original_quantity: eventItem.quantity,
+          actual_quantity: eventItem.remainingQuantity,
+          status: 'pending' as CheckoutItemStatus,
+          reason: null,
+          checked_by: null,
+          checked_at: null,
+          returned_at: null,
+          item: {
+            name: eventItem.item?.name || '',
+            category: eventItem.item?.category || '',
+            quantity: eventItem.item?.quantity || 0
+          },
+          event_item: {
+            quantity: eventItem.quantity
+          }
+        }));
 
-      console.log('Setting checkout items:', checkoutItems);
       setSelectedItems(checkoutItems);
       setShowCheckoutDialog(true);
     } catch (error) {
