@@ -368,7 +368,7 @@ export default function EventItemsPage() {
       const checkoutItems = eventItems.map(eventItem => ({
         id: eventItem.id,
         checkout_task_id: task.id,
-        item_id: eventItem.item.id,
+        item_id: eventItem.item_id,
         event_item_id: eventItem.id,
         original_quantity: eventItem.quantity,
         actual_quantity: eventItem.remainingQuantity,
