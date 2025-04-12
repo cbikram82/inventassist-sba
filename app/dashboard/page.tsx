@@ -54,6 +54,7 @@ interface EventItem {
   quantity: number
   event_name: string
   created_at: string
+  status: string
 }
 
 export default function DashboardPage() {
@@ -519,9 +520,13 @@ export default function DashboardPage() {
                         <div className="text-right">
                           <div className={cn(
                             "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                            remaining <= 0 ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                            eventItem.status === 'checked_out' ? "bg-blue-100 text-blue-700" :
+                            eventItem.status === 'checked_in' ? "bg-green-100 text-green-700" :
+                            "bg-gray-100 text-gray-700"
                           )}>
-                            Remaining: {remaining}
+                            {eventItem.status === 'checked_out' ? "Checked Out" :
+                             eventItem.status === 'checked_in' ? "Checked In" :
+                             "Available"}
                           </div>
                         </div>
                       </div>
