@@ -107,6 +107,7 @@ export default function DashboardPage() {
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false)
   const [currentCheckinItems, setCurrentCheckinItems] = useState<EventItem[]>([])
   const [isAddingCategory, setIsAddingCategory] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -694,7 +695,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-4">
                 {(isAdmin || userRole === 'editor') && (
-                  <Dialog>
+                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
                       <Button className="w-full">
                         <Plus className="mr-2 h-4 w-4" />
@@ -706,11 +707,11 @@ export default function DashboardPage() {
                         <DialogTitle>Add New Item</DialogTitle>
                       </DialogHeader>
                       <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="name" className="text-right">
+                        <div className="grid gap-2">
+                          <Label htmlFor="name">
                             Name *
                           </Label>
-                          <div className="col-span-3">
+                          <div>
                             <Input
                               id="name"
                               value={newItem.name}
@@ -724,22 +725,21 @@ export default function DashboardPage() {
                             )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="description" className="text-right">
+                        <div className="grid gap-2">
+                          <Label htmlFor="description">
                             Description
                           </Label>
                           <Textarea
                             id="description"
                             value={newItem.description}
                             onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
-                            className="col-span-3"
                           />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="quantity" className="text-right">
+                        <div className="grid gap-2">
+                          <Label htmlFor="quantity">
                             Quantity *
                           </Label>
-                          <div className="col-span-3">
+                          <div>
                             <Input
                               id="quantity"
                               type="number"
@@ -753,11 +753,11 @@ export default function DashboardPage() {
                             )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="category" className="text-right">
+                        <div className="grid gap-2">
+                          <Label htmlFor="category">
                             Category *
                           </Label>
-                          <div className="col-span-3 flex gap-2">
+                          <div className="flex gap-2">
                             <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select a category" />
@@ -802,14 +802,13 @@ export default function DashboardPage() {
                             )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="location" className="text-right">
+                        <div className="grid gap-2">
+                          <Label htmlFor="location">
                             Location
                           </Label>
                           <Select 
                             value={newItem.location} 
                             onValueChange={(value) => setNewItem(prev => ({ ...prev, location: value, person_name: "" }))}
-                            className="col-span-3"
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select a location" />
@@ -821,22 +820,21 @@ export default function DashboardPage() {
                           </Select>
                         </div>
                         {newItem.location === 'Home' && (
-                          <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="person_name" className="text-right">
+                          <div className="grid gap-2">
+                            <Label htmlFor="person_name">
                               Person Name *
                             </Label>
                             <Input
                               id="person_name"
                               value={newItem.person_name}
                               onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
-                              className="col-span-3"
                             />
                           </div>
                         )}
                       </div>
                       <DialogFooter>
                         <Button variant="outline" onClick={() => {
-                          setIsCheckinDialogOpen(false);
+                          setIsAddDialogOpen(false);
                           setNewItem({
                             name: "",
                             description: "",
