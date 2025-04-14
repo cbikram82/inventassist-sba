@@ -185,8 +185,6 @@ export function CheckinDialog({
             item_id: item.item_id,
             checkout_task_id: taskId,
             quantity_change: checkinQuantity,
-            previous_quantity: currentItem?.quantity || 0,
-            new_quantity: (currentItem?.quantity || 0) + checkinQuantity,
             action: 'checkin',
             user_id: user?.id,
             reason: reasons[item.id] || null
