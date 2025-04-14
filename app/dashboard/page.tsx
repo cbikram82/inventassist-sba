@@ -102,6 +102,8 @@ export default function DashboardPage() {
     "Kaali Puja"
   ])
   const [items, setItems] = useState<Item[]>([])
+  const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false)
+  const [currentCheckinItems, setCurrentCheckinItems] = useState<EventItem[]>([])
 
   useEffect(() => {
     fetchData()
@@ -132,14 +134,70 @@ export default function DashboardPage() {
       setIsLoading(true)
       setError(null)
 
-      // Fetch all items first
+      // Fetch all items
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
         .select('*')
         .order('name')
 
       if (itemsError) throw itemsError
-      setItems(itemsData || [])
+
+      // Fetch total users
+      const { count: usersCount, error: usersError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+
+      if (usersError) throw usersError
+
+      // Fetch users with their auth data
+      const { data: usersData, error: usersDataError } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (usersDataError) throw usersDataError
+
+      // Get current user's session
+      const { data: { session } } = await supabase.auth.getSession()
+
+      // Get online status based on last activity and current session
+      const usersWithStatus = usersData.map(user => ({
+        ...user,
+        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
+      }))
+
+      // Update current user's last activity
+      if (session?.user?.id) {
+        await supabase
+          .from('users')
+          .update({ last_activity: new Date().toISOString() })
+          .eq('id', session.user.id)
+      }
+
+      // Fetch total items
+      const { count: itemsCount, error: itemsCountError } = await supabase
+        .from('items')
+        .select('*', { count: 'exact', head: true })
+
+      if (itemsCountError) throw itemsCountError
+
+      // Fetch total categories
+      const { count: categoriesCount, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*', { count: 'exact', head: true })
+
+      if (categoriesError) throw categoriesError
+
+      // Fetch low stock items
+      const { data: lowStockItems, error: lowStockError } = await supabase
+        .from('items')
+        .select('*')
+        .lt('quantity', 5)
+        .eq('exclude_from_low_stock', false)
+        .order('quantity')
+
+      if (lowStockError) throw lowStockError
 
       // Fetch event items if an event is selected
       if (selectedNextEvent) {
@@ -147,7 +205,7 @@ export default function DashboardPage() {
           .from('event_items')
           .select(`
             *,
-            checkout_items!inner (
+            checkout_items (
               id,
               status,
               checked_at,
@@ -201,67 +259,17 @@ export default function DashboardPage() {
         setEventItems([])
       }
 
-      // Fetch total users
-      const { count: usersCount, error: usersError } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-
-      if (usersError) throw usersError
-
-      // Fetch users with their auth data
-      const { data: usersData, error: usersDataError } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (usersDataError) throw usersDataError
-
-      // Fetch total categories
-      const { count: categoriesCount, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*', { count: 'exact', head: true })
-
-      if (categoriesError) throw categoriesError
-
-      // Fetch low stock items
-      const { data: lowStockItems, error: lowStockError } = await supabase
-        .from('items')
-        .select('*')
-        .lt('quantity', 5)
-        .eq('exclude_from_low_stock', false)
-        .order('quantity')
-
-      if (lowStockError) throw lowStockError
-
-      // Get current user's session
-      const { data: { session } } = await supabase.auth.getSession()
-
-      // Get online status based on last activity and current session
-      const usersWithStatus = usersData.map(user => ({
-        ...user,
-        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
-      }))
-
-      // Update current user's last activity
-      if (session?.user?.id) {
-        await supabase
-          .from('users')
-          .update({ last_activity: new Date().toISOString() })
-          .eq('id', session.user.id)
-      }
-
-      // Update stats
-      setStats(prev => prev ? {
-        ...prev,
-        totalItems: itemsData?.length || 0,
+      setItems(itemsData || [])
+      setStats({
         totalUsers: usersCount || 0,
+        totalItems: itemsCount || 0,
         totalCategories: categoriesCount || 0,
         nextEvent: selectedNextEvent || 'No upcoming events',
-        recentUsers: usersWithStatus,
+        recentUsers: usersWithStatus || [],
         lowStockItems: lowStockItems || [],
         outOfStockItems: 0
-      } : null);
+      })
+      setLowStockItems(lowStockItems || [])
     } catch (error) {
       console.error('Error fetching data:', error)
       setError(error instanceof Error ? error.message : 'Failed to load data')
@@ -459,6 +467,29 @@ export default function DashboardPage() {
       console.error('Error fetching low stock items:', error)
     }
   }
+
+  const handleCheckinComplete = async () => {
+    try {
+      // Close dialog first
+      setIsCheckinDialogOpen(false);
+      setCurrentCheckinItems([]);
+      
+      // Then refresh data
+      await fetchData();
+      
+      toast({
+        title: "Success",
+        description: "Check-in completed successfully",
+      });
+    } catch (error) {
+      console.error('Error completing checkin:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to complete checkin",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (isLoading) {
     return (

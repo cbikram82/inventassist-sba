@@ -47,6 +47,7 @@ export interface CheckoutItemWithDetails extends CheckoutItem {
   };
   event_item: {
     quantity: number;
+    event_name: string;
   };
 }
 

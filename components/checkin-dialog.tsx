@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CheckoutItemWithDetails } from "@/types/checkout"
+import { CheckoutItemWithDetails, CheckoutItemStatus } from "@/types/checkout"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { useUser } from "@/lib/useUser"
@@ -133,90 +133,86 @@ export function CheckinDialog({
   }
 
   const handleCheckin = async () => {
-    console.log('Starting checkin process...');
-    console.log('Selected items:', items.filter(item => selectedItemsMap[item.id]));
-    console.log('Quantities:', returnQuantities);
-    console.log('Reasons:', reasons);
-
-    if (!user) {
-      console.error('No user found');
-      setError('User not authenticated');
-      return;
-    }
-
-    if (!taskId) {
-      console.error('No task ID provided');
-      setError('No task ID provided');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
     try {
+      // Start a transaction
+      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction');
+      if (transactionError) throw transactionError;
+
       // Validate that at least one item is selected
       const selectedItems = items.filter(item => selectedItemsMap[item.id]);
       if (selectedItems.length === 0) {
-        console.error('No items selected');
-        setError('Please select at least one item to check in');
-        return;
+        throw new Error('Please select at least one item to check in');
       }
 
-      // Process each item
+      // Update item quantities and create audit logs
       for (const item of selectedItems) {
-        const checkinQuantity = returnQuantities[item.id] || item.actual_quantity;
-        const reason = reasons[item.id] || '';
+        const checkinQuantity = returnQuantities[item.id] || 0;
+        if (checkinQuantity <= 0) continue;
 
         // Get current item quantity
-        const { data: currentItem, error: itemError } = await supabase
+        const { data: currentItem, error: currentItemError } = await supabase
           .from('items')
           .select('quantity')
           .eq('id', item.item_id)
           .single();
 
-        if (itemError) throw itemError;
+        if (currentItemError) throw currentItemError;
 
         // Update item quantity
-        const { error: updateQuantityError } = await supabase
+        const { error: updateError } = await supabase
           .from('items')
           .update({
-            quantity: (currentItem?.quantity || 0) + checkinQuantity
+            quantity: (currentItem?.quantity || 0) + checkinQuantity,
+            updated_at: new Date().toISOString()
           })
           .eq('id', item.item_id);
 
-        if (updateQuantityError) throw updateQuantityError;
+        if (updateError) throw updateError;
 
-        // Update checkout item status
-        const { error: updateCheckoutItemError } = await supabase
-          .from('checkout_items')
+        // Update event item quantity
+        const { error: updateEventItemError } = await supabase
+          .from('event_items')
           .update({
-            status: 'checked_in',
-            returned_at: new Date().toISOString(),
-            reason: reason
+            quantity: item.original_quantity - (item.actual_quantity - checkinQuantity),
+            updated_at: new Date().toISOString()
           })
-          .eq('id', item.id);
+          .eq('id', item.event_item_id);
 
-        if (updateCheckoutItemError) throw updateCheckoutItemError;
+        if (updateEventItemError) throw updateEventItemError;
 
         // Create audit log
         const { error: auditError } = await supabase
           .from('audit_logs')
-          .insert({
-            user_id: user.id,
-            action: 'checkin',
+          .insert([{
             item_id: item.item_id,
-            checkout_task_id: taskId,
+            event_item_id: item.event_item_id,
             quantity_change: checkinQuantity,
-            reason: reason
-          });
+            previous_quantity: currentItem?.quantity || 0,
+            new_quantity: (currentItem?.quantity || 0) + checkinQuantity,
+            action: 'checkin',
+            user_id: user?.id,
+            notes: `Checked in ${checkinQuantity} items from ${item.event_item.event_name}`
+          }]);
 
         if (auditError) throw auditError;
+
+        // Update checkout item status
+        const { error: updateCheckoutError } = await supabase
+          .from('checkout_items')
+          .update({
+            status: 'checked_in' as CheckoutItemStatus,
+            checked_at: new Date().toISOString(),
+            checked_by: user?.id
+          })
+          .eq('id', item.id);
+
+        if (updateCheckoutError) throw updateCheckoutError;
       }
 
-      // Update task status to completed
+      // Update checkout task status
       const { error: updateTaskError } = await supabase
         .from('checkout_tasks')
-        .update({ 
+        .update({
           status: 'completed',
           completed_at: new Date().toISOString()
         })
@@ -224,18 +220,20 @@ export function CheckinDialog({
 
       if (updateTaskError) throw updateTaskError;
 
-      toast({
-        title: 'Success',
-        description: 'Items checked in successfully'
-      });
+      // Commit transaction
+      const { error: commitError } = await supabase.rpc('commit_transaction');
+      if (commitError) throw commitError;
 
       onComplete();
-      onClose();
     } catch (error) {
-      console.error('Error checking in items:', error);
-      setError('Failed to process checkin');
-    } finally {
-      setLoading(false);
+      console.error('Error during checkin:', error);
+      // Rollback transaction
+      await supabase.rpc('rollback_transaction');
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to check in items",
+        variant: "destructive",
+      });
     }
   };
 
