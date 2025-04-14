@@ -47,6 +47,17 @@ interface DashboardStats {
   outOfStockItems: number
 }
 
+interface CheckoutItem {
+  id: string
+  status: 'checked' | 'checked_in' | 'cancelled'
+  checked_at: string
+  checked_by: string
+  user: {
+    id: string
+    name: string
+  }
+}
+
 interface EventItem {
   id: string
   item_id: string
@@ -55,6 +66,9 @@ interface EventItem {
   event_name: string
   created_at: string
   status: string
+  checkout_items: CheckoutItem[]
+  last_checked_by: string | null
+  last_checked_at: string | null
 }
 
 export default function DashboardPage() {
@@ -187,7 +201,19 @@ export default function DashboardPage() {
       if (selectedNextEvent) {
         const { data: eventItemsData, error: eventItemsError } = await supabase
           .from('event_items')
-          .select('*')
+          .select(`
+            *,
+            checkout_items (
+              id,
+              status,
+              checked_at,
+              checked_by,
+              user:users!checkout_items_checked_by_fkey (
+                id,
+                name
+              )
+            )
+          `)
           .eq('event_name', selectedNextEvent)
           .order('created_at', { ascending: false })
 
@@ -195,8 +221,37 @@ export default function DashboardPage() {
           console.error('Error fetching event items:', eventItemsError)
           setEventItems([])
         } else {
-          console.log('Fetched event items:', eventItemsData)
-          setEventItems(eventItemsData || [])
+          // Process the event items to determine their status
+          const processedEventItems = (eventItemsData || []).map(eventItem => {
+            const checkoutItems = Array.isArray(eventItem.checkout_items) ? eventItem.checkout_items : []
+            
+            // Get the most recent checkout/check-in status
+            const lastCheckout = checkoutItems
+              .filter((ci: CheckoutItem) => ci.status === 'checked' && ci.checked_at)
+              .sort((a: CheckoutItem, b: CheckoutItem) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0]
+
+            const lastCheckin = checkoutItems
+              .filter((ci: CheckoutItem) => ci.status === 'checked_in' && ci.checked_at)
+              .sort((a: CheckoutItem, b: CheckoutItem) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())[0]
+
+            // Determine the current status
+            let status = 'available'
+            if (lastCheckout && (!lastCheckin || new Date(lastCheckout.checked_at) > new Date(lastCheckin.checked_at))) {
+              status = 'checked_out'
+            } else if (lastCheckin) {
+              status = 'checked_in'
+            }
+
+            return {
+              ...eventItem,
+              status,
+              last_checked_by: lastCheckout?.user?.name || lastCheckin?.user?.name || null,
+              last_checked_at: lastCheckout?.checked_at || lastCheckin?.checked_at || null
+            }
+          })
+
+          console.log('Processed event items:', processedEventItems)
+          setEventItems(processedEventItems)
         }
       } else {
         setEventItems([])
