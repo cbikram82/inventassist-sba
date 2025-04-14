@@ -104,6 +104,9 @@ export default function DashboardPage() {
   const [items, setItems] = useState<Item[]>([])
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false)
   const [currentCheckinItems, setCurrentCheckinItems] = useState<EventItem[]>([])
+  const [selectedItem, setSelectedItem] = useState("")
+  const [quantity, setQuantity] = useState(0)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -324,10 +327,10 @@ export default function DashboardPage() {
   }
 
   const handleAddItem = async () => {
-    if (!selectedNextEvent || !selectedItem || !quantity || quantity <= 0) {
+    if (!selectedItem || !quantity || quantity <= 0) {
       toast({
         title: "Error",
-        description: "Please select an event, item, and enter a valid quantity greater than zero",
+        description: "Please select an item and enter a valid quantity greater than zero",
         variant: "destructive",
       })
       return
@@ -347,9 +350,8 @@ export default function DashboardPage() {
       }
 
       const { error } = await supabase
-        .from('event_items')
+        .from('items')
         .insert([{
-          event_name: selectedNextEvent,
           item_id: selectedItem,
           item_name: selectedItemData.name,
           quantity: quantity
@@ -359,7 +361,7 @@ export default function DashboardPage() {
 
       toast({
         title: "Success",
-        description: "Item added to event list",
+        description: "Item added to inventory",
       })
 
       // Reset form
@@ -717,13 +719,16 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="quantity">Quantity</Label>
-                          <Input 
-                            id="quantity" 
-                            type="number" 
+                          <Input
+                            type="number"
+                            min="1"
+                            value={quantity}
+                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
                             placeholder="Enter quantity"
-                            value={newItem.quantity}
-                            onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                           />
+                          {quantity <= 0 && (
+                            <p className="text-sm text-red-500">Quantity needs to be more than zero</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="location">Location</Label>
@@ -796,7 +801,13 @@ export default function DashboardPage() {
                             )}
                           </div>
                         </div>
-                        <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
+                        <Button 
+                          className="w-full" 
+                          onClick={handleAddItem}
+                          disabled={!selectedItem || !quantity || quantity <= 0}
+                        >
+                          Add Item
+                        </Button>
                       </div>
                     </DialogContent>
                   </Dialog>

@@ -267,6 +267,7 @@ export default function EventItemsPage() {
       const { error } = await supabase
         .from('event_items')
         .insert([{
+          event_name: selectedEvent,
           item_id: selectedItem,
           item_name: selectedItemData.name,
           quantity: quantity
@@ -276,7 +277,7 @@ export default function EventItemsPage() {
 
       toast({
         title: "Success",
-        description: "Item added to inventory",
+        description: "Item added to event list",
       })
 
       // Reset form
@@ -535,7 +536,7 @@ export default function EventItemsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
+                      <div className="space-y-2">
                         <Label htmlFor="quantity">Quantity</Label>
                         <Input
                           type="number"
@@ -544,8 +545,17 @@ export default function EventItemsPage() {
                           onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
                           placeholder="Enter quantity"
                         />
+                        {quantity <= 0 && (
+                          <p className="text-sm text-red-500">Quantity needs to be more than zero</p>
+                        )}
                       </div>
-                      <Button onClick={handleAddItem}>Add Item</Button>
+                      <Button 
+                        className="w-full" 
+                        onClick={handleAddItem}
+                        disabled={!selectedItem || !quantity || quantity <= 0}
+                      >
+                        Add Item
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
