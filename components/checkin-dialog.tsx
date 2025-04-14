@@ -134,10 +134,6 @@ export function CheckinDialog({
 
   const handleCheckin = async () => {
     try {
-      // Start a transaction
-      const { data: transaction, error: transactionError } = await supabase.rpc('begin_transaction');
-      if (transactionError) throw transactionError;
-
       // Validate that at least one item is selected
       const selectedItems = items.filter(item => selectedItemsMap[item.id]);
       if (selectedItems.length === 0) {
@@ -216,15 +212,9 @@ export function CheckinDialog({
 
       if (updateTaskError) throw updateTaskError;
 
-      // Commit transaction
-      const { error: commitError } = await supabase.rpc('commit_transaction');
-      if (commitError) throw commitError;
-
       onComplete();
     } catch (error) {
       console.error('Error during checkin:', error);
-      // Rollback transaction
-      await supabase.rpc('rollback_transaction');
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to check in items",
