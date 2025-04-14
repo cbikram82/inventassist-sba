@@ -324,72 +324,48 @@ export default function DashboardPage() {
   }
 
   const handleAddItem = async () => {
-    if (nameExists) {
+    if (!selectedEvent || !selectedItem || quantity <= 0) {
       toast({
         title: "Error",
-        description: "An item with this name already exists. Please choose a different name.",
+        description: "Please select an event, item, and enter a valid quantity greater than zero",
         variant: "destructive",
       })
       return
     }
 
     try {
-      if (!newItem.name.trim()) {
-        toast({
-          title: "Error",
-          description: "Item name is required",
-          variant: "destructive",
-        })
-        return
-      }
+      const selectedItemData = items.find(item => item.id === selectedItem)
+      if (!selectedItemData) throw new Error("Item not found")
 
-      if (!selectedCategory) {
+      if (quantity > selectedItemData.quantity) {
         toast({
           title: "Error",
-          description: "Please select a category",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
-        toast({
-          title: "Error",
-          description: "Person name is required when location is Home",
+          description: "Requested quantity exceeds available stock",
           variant: "destructive",
         })
         return
       }
 
       const { error } = await supabase
-        .from('items')
+        .from('event_items')
         .insert([{
-          name: newItem.name,
-          description: newItem.description,
-          quantity: parseInt(newItem.quantity) || 0,
-          category: selectedCategory,
-          location: newItem.location,
-          person_name: newItem.location === 'Home' ? newItem.person_name : null
+          event_name: selectedEvent,
+          item_id: selectedItem,
+          item_name: selectedItemData.name,
+          quantity: quantity
         }])
 
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Item added successfully",
+        description: "Item added to event list",
       })
 
       // Reset form
-      setNewItem({
-        name: "",
-        description: "",
-        quantity: "",
-        category: "",
-        location: "Safestore",
-        person_name: ""
-      })
-      setSelectedCategory("")
-      setNameExists(false)
+      setSelectedItem("")
+      setQuantity(0)
+      setIsDialogOpen(false)
       
       // Refresh data
       fetchData()

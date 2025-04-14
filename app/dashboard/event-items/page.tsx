@@ -245,7 +245,7 @@ export default function EventItemsPage() {
     if (!selectedEvent || !selectedItem || quantity <= 0) {
       toast({
         title: "Error",
-        description: "Please select an event, item, and enter a valid quantity",
+        description: "Please select an event, item, and enter a valid quantity greater than zero",
         variant: "destructive",
       })
       return
