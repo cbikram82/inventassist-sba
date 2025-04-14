@@ -539,11 +539,11 @@ export default function EventItemsPage() {
                       <div>
                         <Label htmlFor="quantity">Quantity</Label>
                         <Input
-                          id="quantity"
                           type="number"
                           min="1"
                           value={quantity}
-                          onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                          onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
+                          placeholder="Enter quantity"
                         />
                       </div>
                       <Button onClick={handleAddItem}>Add Item</Button>

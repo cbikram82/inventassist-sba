@@ -324,7 +324,7 @@ export default function DashboardPage() {
   }
 
   const handleAddItem = async () => {
-    if (!selectedEvent || !selectedItem || quantity <= 0) {
+    if (!selectedNextEvent || !selectedItem || quantity <= 0) {
       toast({
         title: "Error",
         description: "Please select an event, item, and enter a valid quantity greater than zero",
@@ -349,7 +349,7 @@ export default function DashboardPage() {
       const { error } = await supabase
         .from('event_items')
         .insert([{
-          event_name: selectedEvent,
+          event_name: selectedNextEvent,
           item_id: selectedItem,
           item_name: selectedItemData.name,
           quantity: quantity
