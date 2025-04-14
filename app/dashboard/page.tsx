@@ -132,70 +132,14 @@ export default function DashboardPage() {
       setIsLoading(true)
       setError(null)
 
-      // Fetch all items
+      // Fetch all items first
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
         .select('*')
         .order('name')
 
       if (itemsError) throw itemsError
-
-      // Fetch total users
-      const { count: usersCount, error: usersError } = await supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-
-      if (usersError) throw usersError
-
-      // Fetch users with their auth data
-      const { data: usersData, error: usersDataError } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (usersDataError) throw usersDataError
-
-      // Get current user's session
-      const { data: { session } } = await supabase.auth.getSession()
-
-      // Get online status based on last activity and current session
-      const usersWithStatus = usersData.map(user => ({
-        ...user,
-        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
-      }))
-
-      // Update current user's last activity
-      if (session?.user?.id) {
-        await supabase
-          .from('users')
-          .update({ last_activity: new Date().toISOString() })
-          .eq('id', session.user.id)
-      }
-
-      // Fetch total items
-      const { count: itemsCount, error: itemsCountError } = await supabase
-        .from('items')
-        .select('*', { count: 'exact', head: true })
-
-      if (itemsCountError) throw itemsCountError
-
-      // Fetch total categories
-      const { count: categoriesCount, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*', { count: 'exact', head: true })
-
-      if (categoriesError) throw categoriesError
-
-      // Fetch low stock items
-      const { data: lowStockItems, error: lowStockError } = await supabase
-        .from('items')
-        .select('*')
-        .lt('quantity', 5)
-        .eq('exclude_from_low_stock', false)
-        .order('quantity')
-
-      if (lowStockError) throw lowStockError
+      setItems(itemsData || [])
 
       // Fetch event items if an event is selected
       if (selectedNextEvent) {
@@ -257,17 +201,73 @@ export default function DashboardPage() {
         setEventItems([])
       }
 
-      setItems(itemsData || [])
-      setStats({
+      // Fetch total users
+      const { count: usersCount, error: usersError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+
+      if (usersError) throw usersError
+
+      // Fetch users with their auth data
+      const { data: usersData, error: usersDataError } = await supabase
+        .from('users')
+        .select('id, email, role, last_activity, last_sign_in_at')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (usersDataError) throw usersDataError
+
+      // Fetch total categories
+      const { count: categoriesCount, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*', { count: 'exact', head: true })
+
+      if (categoriesError) throw categoriesError
+
+      // Fetch low stock items
+      const { data: lowStockItems, error: lowStockError } = await supabase
+        .from('items')
+        .select('*')
+        .lt('quantity', 5)
+        .eq('exclude_from_low_stock', false)
+        .order('quantity')
+
+      if (lowStockError) throw lowStockError
+
+      // Get current user's session
+      const { data: { session } } = await supabase.auth.getSession()
+
+      // Get online status based on last activity and current session
+      const usersWithStatus = usersData?.map((user: { 
+        id: string; 
+        email: string; 
+        role: string; 
+        last_activity: string | null; 
+        last_sign_in_at: string | null 
+      }) => ({
+        ...user,
+        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
+      })) || [];
+
+      // Update current user's last activity
+      if (session?.user?.id) {
+        await supabase
+          .from('users')
+          .update({ last_activity: new Date().toISOString() })
+          .eq('id', session.user.id)
+      }
+
+      // Update stats
+      setStats(prev => prev ? {
+        ...prev,
+        totalItems: itemsData?.length || 0,
         totalUsers: usersCount || 0,
-        totalItems: itemsCount || 0,
         totalCategories: categoriesCount || 0,
         nextEvent: selectedNextEvent || 'No upcoming events',
-        recentUsers: usersWithStatus || [],
+        recentUsers: usersWithStatus,
         lowStockItems: lowStockItems || [],
         outOfStockItems: 0
-      })
-      setLowStockItems(lowStockItems || [])
+      } : null);
     } catch (error) {
       console.error('Error fetching data:', error)
       setError(error instanceof Error ? error.message : 'Failed to load data')
