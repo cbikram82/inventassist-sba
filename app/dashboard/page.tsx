@@ -104,9 +104,6 @@ export default function DashboardPage() {
   const [items, setItems] = useState<Item[]>([])
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false)
   const [currentCheckinItems, setCurrentCheckinItems] = useState<EventItem[]>([])
-  const [selectedItem, setSelectedItem] = useState("")
-  const [quantity, setQuantity] = useState(0)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -327,23 +324,38 @@ export default function DashboardPage() {
   }
 
   const handleAddItem = async () => {
-    if (!selectedItem || !quantity || quantity <= 0) {
+    if (nameExists) {
       toast({
         title: "Error",
-        description: "Please select an item and enter a valid quantity greater than zero",
+        description: "An item with this name already exists. Please choose a different name.",
         variant: "destructive",
       })
       return
     }
 
     try {
-      const selectedItemData = items.find(item => item.id === selectedItem)
-      if (!selectedItemData) throw new Error("Item not found")
-
-      if (quantity > selectedItemData.quantity) {
+      if (!newItem.name.trim()) {
         toast({
           title: "Error",
-          description: "Requested quantity exceeds available stock",
+          description: "Item name is required",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!selectedCategory) {
+        toast({
+          title: "Error",
+          description: "Please select a category",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
+        toast({
+          title: "Error",
+          description: "Person name is required when location is Home",
           variant: "destructive",
         })
         return
@@ -352,22 +364,32 @@ export default function DashboardPage() {
       const { error } = await supabase
         .from('items')
         .insert([{
-          item_id: selectedItem,
-          item_name: selectedItemData.name,
-          quantity: quantity
+          name: newItem.name,
+          description: newItem.description,
+          quantity: parseInt(newItem.quantity) || 0,
+          category: selectedCategory,
+          location: newItem.location,
+          person_name: newItem.location === 'Home' ? newItem.person_name : null
         }])
 
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Item added to inventory",
+        description: "Item added successfully",
       })
 
       // Reset form
-      setSelectedItem("")
-      setQuantity(0)
-      setIsDialogOpen(false)
+      setNewItem({
+        name: "",
+        description: "",
+        quantity: "",
+        category: "",
+        location: "Safestore",
+        person_name: ""
+      })
+      setSelectedCategory("")
+      setNameExists(false)
       
       // Refresh data
       fetchData()
@@ -719,20 +741,13 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="quantity">Quantity</Label>
-                          <Input
-                            id="quantity"
-                            type="number"
-                            min="0"
+                          <Input 
+                            id="quantity" 
+                            type="number" 
                             placeholder="Enter quantity"
-                            value={quantity}
-                            onChange={(e) => {
-                              const value = e.target.value === '' ? 0 : parseInt(e.target.value);
-                              setQuantity(isNaN(value) ? 0 : value);
-                            }}
+                            value={newItem.quantity}
+                            onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                           />
-                          {quantity <= 0 && (
-                            <p className="text-sm text-red-500">Quantity needs to be more than zero</p>
-                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="location">Location</Label>
@@ -805,13 +820,7 @@ export default function DashboardPage() {
                             )}
                           </div>
                         </div>
-                        <Button 
-                          className="w-full" 
-                          onClick={handleAddItem}
-                          disabled={!selectedNextEvent || !selectedItem || quantity <= 0}
-                        >
-                          Add Item
-                        </Button>
+                        <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
                       </div>
                     </DialogContent>
                   </Dialog>

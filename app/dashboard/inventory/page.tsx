@@ -542,14 +542,10 @@ export default function InventoryPage() {
                       <Input
                         id="quantity"
                         type="number"
-                        min="1"
                         placeholder="Enter quantity"
                         value={newItem.quantity}
-                        onChange={(e) => setNewItem({ ...newItem, quantity: Math.max(1, parseInt(e.target.value) || 0).toString() })}
+                        onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                       />
-                      {parseInt(newItem.quantity) <= 0 && (
-                        <p className="text-sm text-red-500">Quantity needs to be more than zero</p>
-                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
@@ -649,7 +645,7 @@ export default function InventoryPage() {
                     <Button 
                       className="w-full" 
                       onClick={handleAddItem}
-                      disabled={isAddingItem || !newItem.name.trim() || !selectedCategory || parseInt(newItem.quantity) <= 0 || (newItem.location === 'Home' && !newItem.person_name?.trim())}
+                      disabled={isAddingItem}
                     >
                       {isAddingItem ? "Adding..." : "Add Item"}
                     </Button>

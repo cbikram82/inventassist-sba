@@ -242,10 +242,10 @@ export default function EventItemsPage() {
     : [];
 
   const handleAddItem = async () => {
-    if (!selectedItem || !quantity || quantity <= 0) {
+    if (!selectedEvent || !selectedItem || quantity <= 0) {
       toast({
         title: "Error",
-        description: "Please select an item and enter a valid quantity greater than zero",
+        description: "Please select an event, item, and enter a valid quantity",
         variant: "destructive",
       })
       return
@@ -536,26 +536,17 @@ export default function EventItemsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
+                      <div>
                         <Label htmlFor="quantity">Quantity</Label>
                         <Input
+                          id="quantity"
                           type="number"
                           min="1"
                           value={quantity}
-                          onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
-                          placeholder="Enter quantity"
+                          onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
                         />
-                        {quantity <= 0 && (
-                          <p className="text-sm text-red-500">Quantity needs to be more than zero</p>
-                        )}
                       </div>
-                      <Button 
-                        className="w-full" 
-                        onClick={handleAddItem}
-                        disabled={!selectedItem || !quantity || quantity <= 0}
-                      >
-                        Add Item
-                      </Button>
+                      <Button onClick={handleAddItem}>Add Item</Button>
                     </div>
                   </DialogContent>
                 </Dialog>
