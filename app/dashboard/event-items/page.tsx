@@ -96,6 +96,7 @@ export default function EventItemsPage() {
   const [selectedEvent, setSelectedEvent] = useState<string>("")
   const [selectedItem, setSelectedItem] = useState<string>("")
   const [quantity, setQuantity] = useState<number>(0)
+  const [quantityError, setQuantityError] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [availableEvents] = useState([
     "Sarasawati Puja",
@@ -459,6 +460,16 @@ export default function EventItemsPage() {
     }
   };
 
+  const handleQuantityChange = (value: string) => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue) || numValue <= 0) {
+      setQuantityError("Quantity must be greater than 0");
+    } else {
+      setQuantityError(null);
+    }
+    setQuantity(numValue || 0);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -543,10 +554,19 @@ export default function EventItemsPage() {
                           type="number"
                           min="1"
                           value={quantity}
-                          onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
+                          onChange={(e) => handleQuantityChange(e.target.value)}
+                          className={cn(quantityError && "border-red-500")}
                         />
+                        {quantityError && (
+                          <p className="text-sm text-red-500 mt-1">{quantityError}</p>
+                        )}
                       </div>
-                      <Button onClick={handleAddItem}>Add Item</Button>
+                      <Button 
+                        onClick={handleAddItem}
+                        disabled={!selectedEvent || !selectedItem || quantity <= 0 || !!quantityError}
+                      >
+                        Add Item
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
