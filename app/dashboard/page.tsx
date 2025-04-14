@@ -147,7 +147,7 @@ export default function DashboardPage() {
           .from('event_items')
           .select(`
             *,
-            checkout_items (
+            checkout_items!inner (
               id,
               status,
               checked_at,
@@ -211,7 +211,7 @@ export default function DashboardPage() {
       // Fetch users with their auth data
       const { data: usersData, error: usersDataError } = await supabase
         .from('users')
-        .select('id, email, role, last_activity')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(5)
 
@@ -238,16 +238,10 @@ export default function DashboardPage() {
       const { data: { session } } = await supabase.auth.getSession()
 
       // Get online status based on last activity and current session
-      const usersWithStatus = usersData?.map((user: { 
-        id: string; 
-        email: string; 
-        role: string; 
-        last_activity: string | null
-      }) => ({
+      const usersWithStatus = usersData.map(user => ({
         ...user,
-        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null,
-        last_sign_in_at: null // Add this to maintain the interface compatibility
-      })) || [];
+        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
+      }))
 
       // Update current user's last activity
       if (session?.user?.id) {
