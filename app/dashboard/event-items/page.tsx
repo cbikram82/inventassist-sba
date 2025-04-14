@@ -242,10 +242,10 @@ export default function EventItemsPage() {
     : [];
 
   const handleAddItem = async () => {
-    if (!selectedEvent || !selectedItem || quantity <= 0) {
+    if (!selectedItem || !quantity || quantity <= 0) {
       toast({
         title: "Error",
-        description: "Please select an event, item, and enter a valid quantity greater than zero",
+        description: "Please select an item and enter a valid quantity greater than zero",
         variant: "destructive",
       })
       return
@@ -267,7 +267,6 @@ export default function EventItemsPage() {
       const { error } = await supabase
         .from('event_items')
         .insert([{
-          event_name: selectedEvent,
           item_id: selectedItem,
           item_name: selectedItemData.name,
           quantity: quantity
@@ -277,7 +276,7 @@ export default function EventItemsPage() {
 
       toast({
         title: "Success",
-        description: "Item added to event list",
+        description: "Item added to inventory",
       })
 
       // Reset form

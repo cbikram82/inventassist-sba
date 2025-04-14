@@ -324,7 +324,7 @@ export default function DashboardPage() {
   }
 
   const handleAddItem = async () => {
-    if (!selectedNextEvent || !selectedItem || quantity <= 0) {
+    if (!selectedNextEvent || !selectedItem || !quantity || quantity <= 0) {
       toast({
         title: "Error",
         description: "Please select an event, item, and enter a valid quantity greater than zero",
