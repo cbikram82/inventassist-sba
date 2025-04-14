@@ -560,7 +560,7 @@ export default function EventItemsPage() {
                           id="quantity"
                           type="number"
                           min="1"
-                          value={quantity}
+                          value={quantity || ''}
                           onChange={(e) => handleQuantityChange(e.target.value)}
                           className={cn(quantityError && "border-red-500")}
                         />
