@@ -10,11 +10,12 @@ import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/lib/supabase"
 import { Loader2, Plus, Users, Package, BarChart, AlertTriangle, LayoutGrid, Calendar } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ImportInventory } from "@/components/import-inventory"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Item {
   id: string
@@ -92,6 +93,7 @@ export default function DashboardPage() {
     location: "Safestore",
     person_name: ""
   })
+  const [quantityError, setQuantityError] = useState<string | null>(null)
   const [lowStockItems, setLowStockItems] = useState<Array<{ id: string; name: string; quantity: number }>>([])
   const [selectedNextEvent, setSelectedNextEvent] = useState<string>("")
   const [eventItems, setEventItems] = useState<EventItem[]>([])
@@ -323,63 +325,55 @@ export default function DashboardPage() {
     await checkDuplicateName(newName)
   }
 
+  const handleQuantityChange = (value: string) => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue) || numValue <= 0) {
+      setQuantityError("Quantity must be greater than 0");
+    } else {
+      setQuantityError(null);
+    }
+    setNewItem(prev => ({ ...prev, quantity: value }));
+  };
+
   const handleAddItem = async () => {
-    if (nameExists) {
+    if (!newItem.name || !newItem.category || !newItem.quantity) {
       toast({
         title: "Error",
-        description: "An item with this name already exists. Please choose a different name.",
+        description: "Please fill in all required fields",
         variant: "destructive",
-      })
-      return
+      });
+      return;
+    }
+
+    const quantity = parseInt(newItem.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      toast({
+        title: "Error",
+        description: "Quantity must be greater than 0",
+        variant: "destructive",
+      });
+      return;
     }
 
     try {
-      if (!newItem.name.trim()) {
-        toast({
-          title: "Error",
-          description: "Item name is required",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (!selectedCategory) {
-        toast({
-          title: "Error",
-          description: "Please select a category",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
-        toast({
-          title: "Error",
-          description: "Person name is required when location is Home",
-          variant: "destructive",
-        })
-        return
-      }
-
       const { error } = await supabase
         .from('items')
         .insert([{
           name: newItem.name,
           description: newItem.description,
-          quantity: parseInt(newItem.quantity) || 0,
-          category: selectedCategory,
+          quantity: quantity,
+          category: newItem.category,
           location: newItem.location,
-          person_name: newItem.location === 'Home' ? newItem.person_name : null
-        }])
+          person_name: newItem.person_name
+        }]);
 
-      if (error) throw error
+      if (error) throw error;
 
       toast({
         title: "Success",
         description: "Item added successfully",
-      })
+      });
 
-      // Reset form
       setNewItem({
         name: "",
         description: "",
@@ -387,21 +381,18 @@ export default function DashboardPage() {
         category: "",
         location: "Safestore",
         person_name: ""
-      })
-      setSelectedCategory("")
-      setNameExists(false)
-      
-      // Refresh data
-      fetchData()
+      });
+      setQuantityError(null);
+      fetchData();
     } catch (error) {
-      console.error('Error adding item:', error)
+      console.error('Error adding item:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add item",
+        description: "Failed to add item",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleAddCategory = async () => {
     try {
@@ -712,116 +703,113 @@ export default function DashboardPage() {
                       <DialogHeader>
                         <DialogTitle>Add New Item</DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="name">Name</Label>
-                          <Input 
-                            id="name" 
-                            placeholder="Enter item name"
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="name" className="text-right">
+                            Name *
+                          </Label>
+                          <Input
+                            id="name"
                             value={newItem.name}
-                            onChange={handleNameChange}
-                            className={cn(
-                              nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
-                            )}
+                            onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                            className="col-span-3"
                           />
-                          {nameExists && (
-                            <p className="text-sm text-yellow-600">
-                              An item with this name already exists. Please choose a different name.
-                            </p>
-                          )}
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="description">Description</Label>
-                          <Input 
-                            id="description" 
-                            placeholder="Enter item description"
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="description" className="text-right">
+                            Description
+                          </Label>
+                          <Textarea
+                            id="description"
                             value={newItem.description}
-                            onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                            onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                            className="col-span-3"
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="quantity">Quantity</Label>
-                          <Input 
-                            id="quantity" 
-                            type="number" 
-                            placeholder="Enter quantity"
-                            value={newItem.quantity}
-                            onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                          />
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="quantity" className="text-right">
+                            Quantity *
+                          </Label>
+                          <div className="col-span-3">
+                            <Input
+                              id="quantity"
+                              type="number"
+                              min="1"
+                              value={newItem.quantity}
+                              onChange={(e) => handleQuantityChange(e.target.value)}
+                              className={cn(quantityError && "border-red-500")}
+                            />
+                            {quantityError && (
+                              <p className="text-sm text-red-500 mt-1">{quantityError}</p>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="location">Location</Label>
-                          <Select 
-                            value={newItem.location} 
-                            onValueChange={(value) => setNewItem({ ...newItem, location: value, person_name: "" })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select location" />
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="category" className="text-right">
+                            Category *
+                          </Label>
+                          <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Select a category" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Safestore">Safestore</SelectItem>
-                              <SelectItem value="Home">Home</SelectItem>
+                              {categories.map(category => (
+                                <SelectItem key={category.id} value={category.name}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        {newItem.location === 'Home' && (
-                          <div className="space-y-2">
-                            <Label htmlFor="person_name">Person Name</Label>
-                            <Input 
-                              id="person_name" 
-                              placeholder="Enter person name"
-                              value={newItem.person_name}
-                              onChange={(e) => setNewItem({ ...newItem, person_name: e.target.value })}
-                            />
-                          </div>
-                        )}
-                        <div className="space-y-2">
-                          <Label htmlFor="category">Category</Label>
-                          <div className="flex gap-2">
-                            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.map((category) => (
-                                  <SelectItem key={category.id} value={category.name}>
-                                    {category.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {isAdmin && (
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="icon">
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Add New Category</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div className="space-y-2">
-                                      <Label htmlFor="newCategory">Category Name</Label>
-                                      <Input
-                                        id="newCategory"
-                                        placeholder="Enter category name"
-                                        value={newCategoryName}
-                                        onChange={(e) => setNewCategoryName(e.target.value)}
-                                      />
-                                    </div>
-                                    <Button onClick={handleAddCategory} className="w-full">
-                                      Add Category
-                                    </Button>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            )}
-                          </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="location" className="text-right">
+                            Location
+                          </Label>
+                          <Select value={newItem.location} onValueChange={(value) => setNewItem(prev => ({ ...prev, location: value }))}>
+                            <SelectTrigger className="col-span-3">
+                              <SelectValue placeholder="Select a location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Safestore">Safestore</SelectItem>
+                              <SelectItem value="Office">Office</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                        <Button className="w-full" onClick={handleAddItem}>Add Item</Button>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="person_name" className="text-right">
+                            Person Name
+                          </Label>
+                          <Input
+                            id="person_name"
+                            value={newItem.person_name}
+                            onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
+                            className="col-span-3"
+                          />
+                        </div>
                       </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                          setIsCheckinDialogOpen(false);
+                          setNewItem({
+                            name: "",
+                            description: "",
+                            quantity: "",
+                            category: "",
+                            location: "Safestore",
+                            person_name: ""
+                          });
+                          setQuantityError(null);
+                        }}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          onClick={handleAddItem}
+                          disabled={!newItem.name || !newItem.category || !newItem.quantity || !!quantityError}
+                        >
+                          Add Item
+                        </Button>
+                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
                 )}

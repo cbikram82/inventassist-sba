@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Plus, FileUp, FileDown, Search } from "lucide-react"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 
 // Configure page to be dynamic and not cached
 export const dynamic = 'force-dynamic'
@@ -80,6 +81,7 @@ export default function InventoryPage() {
   const [isDeletingItem, setIsDeletingItem] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [quantityError, setQuantityError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchItems()
@@ -165,66 +167,56 @@ export default function InventoryPage() {
     await checkDuplicateName(newName)
   }
 
+  const handleQuantityChange = (value: string) => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue) || numValue <= 0) {
+      setQuantityError("Quantity must be greater than 0");
+    } else {
+      setQuantityError(null);
+    }
+    setNewItem(prev => ({ ...prev, quantity: value }));
+  };
+
   const handleAddItem = async () => {
-    if (nameExists) {
+    if (!newItem.name || !newItem.category || !newItem.quantity) {
       toast({
         title: "Error",
-        description: "An item with this name already exists. Please choose a different name.",
+        description: "Please fill in all required fields",
         variant: "destructive",
-      })
-      return
+      });
+      return;
+    }
+
+    const quantity = parseInt(newItem.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      toast({
+        title: "Error",
+        description: "Quantity must be greater than 0",
+        variant: "destructive",
+      });
+      return;
     }
 
     try {
-      setIsAddingItem(true)
-
-      if (!newItem.name.trim()) {
-        toast({
-          title: "Error",
-          description: "Item name is required",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (!selectedCategory) {
-        toast({
-          title: "Error",
-          description: "Please select a category",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (newItem.location === 'Home' && !newItem.person_name?.trim()) {
-        toast({
-          title: "Error",
-          description: "Person name is required when location is set to Home",
-          variant: "destructive",
-        })
-        return
-      }
-
       const { error } = await supabase
         .from('items')
         .insert([{
           name: newItem.name,
-          description: newItem.description?.trim() || null,
-          quantity: parseInt(newItem.quantity) || 0,
-          category: selectedCategory,
+          description: newItem.description,
+          quantity: quantity,
+          category: newItem.category,
           location: newItem.location,
-          person_name: newItem.location === 'Home' ? newItem.person_name : null,
+          person_name: newItem.person_name,
           exclude_from_low_stock: newItem.exclude_from_low_stock
-        }])
+        }]);
 
-      if (error) throw error
+      if (error) throw error;
 
       toast({
         title: "Success",
         description: "Item added successfully",
-      })
+      });
 
-      // Reset form
       setNewItem({
         name: "",
         description: "",
@@ -233,26 +225,18 @@ export default function InventoryPage() {
         location: "Safestore",
         person_name: "",
         exclude_from_low_stock: false
-      })
-      setSelectedCategory("")
-      setNameExists(false)
-      
-      // Close dialog
-      setIsAddItemDialogOpen(false)
-      
-      // Refresh data
-      fetchItems()
+      });
+      setQuantityError(null);
+      fetchItems();
     } catch (error) {
-      console.error('Error adding item:', error)
+      console.error('Error adding item:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add item",
+        description: "Failed to add item",
         variant: "destructive",
-      })
-    } finally {
-      setIsAddingItem(false)
+      });
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
     if (userRole !== 'admin' && userRole !== 'editor') {
@@ -506,113 +490,75 @@ export default function InventoryPage() {
                     Add Item
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
                     <DialogTitle>Add New Item</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Name</Label>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="name" className="text-right">
+                        Name *
+                      </Label>
                       <Input
                         id="name"
-                        placeholder="Enter item name"
                         value={newItem.name}
-                        onChange={handleNameChange}
-                        className={cn(
-                          nameExists && "border-yellow-500 focus-visible:ring-yellow-500"
-                        )}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
+                        className="col-span-3"
                       />
-                      {nameExists && (
-                        <p className="text-sm text-yellow-600">
-                          An item with this name already exists. Please choose a different name.
-                        </p>
-                      )}
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Input
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="description" className="text-right">
+                        Description
+                      </Label>
+                      <Textarea
                         id="description"
-                        placeholder="Enter item description"
                         value={newItem.description}
-                        onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
+                        className="col-span-3"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quantity">Quantity</Label>
-                      <Input
-                        id="quantity"
-                        type="number"
-                        placeholder="Enter quantity"
-                        value={newItem.quantity}
-                        onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <div className="flex gap-2">
-                        <Select 
-                          value={selectedCategory} 
-                          onValueChange={setSelectedCategory}
-                          required
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select a category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.length > 0 ? (
-                              categories.map((category) => (
-                                <SelectItem key={category.id} value={category.name}>
-                                  {category.name}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="" disabled>
-                                No categories available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        {(userRole === 'admin' || userRole === 'editor') && (
-                          <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="icon">
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Add New Category</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="newCategory">Category Name</Label>
-                                  <Input
-                                    id="newCategory"
-                                    placeholder="Enter category name"
-                                    value={newCategoryName}
-                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                  />
-                                </div>
-                                <Button 
-                                  className="w-full" 
-                                  onClick={handleAddCategory}
-                                >
-                                  Add Category
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="quantity" className="text-right">
+                        Quantity *
+                      </Label>
+                      <div className="col-span-3">
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="1"
+                          value={newItem.quantity}
+                          onChange={(e) => handleQuantityChange(e.target.value)}
+                          className={cn(quantityError && "border-red-500")}
+                        />
+                        {quantityError && (
+                          <p className="text-sm text-red-500 mt-1">{quantityError}</p>
                         )}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location</Label>
-                      <Select
-                        value={newItem.location}
-                        onValueChange={(value) => setNewItem({ ...newItem, location: value, person_name: "" })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select location" />
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="category" className="text-right">
+                        Category *
+                      </Label>
+                      <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map(category => (
+                            <SelectItem key={category.id} value={category.name}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="location" className="text-right">
+                        Location
+                      </Label>
+                      <Select value={newItem.location} onValueChange={(value) => setNewItem({ ...newItem, location: value })}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select a location" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Safestore">Safestore</SelectItem>
@@ -620,36 +566,52 @@ export default function InventoryPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {newItem.location === 'Home' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="person_name">Person Name</Label>
-                        <Input
-                          id="person_name"
-                          placeholder="Enter person name"
-                          value={newItem.person_name}
-                          onChange={(e) => setNewItem({ ...newItem, person_name: e.target.value })}
-                        />
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-2 py-2 border-t">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="person_name" className="text-right">
+                        Person Name
+                      </Label>
+                      <Input
+                        id="person_name"
+                        value={newItem.person_name}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
+                        className="col-span-3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="exclude-from-low-stock" className="text-right">
+                        Exclude from low stock display
+                      </Label>
                       <Switch
                         id="exclude-from-low-stock"
                         checked={newItem.exclude_from_low_stock}
                         onCheckedChange={(checked) => setNewItem({ ...newItem, exclude_from_low_stock: checked })}
-                        className="data-[state=checked]:bg-inventassist-orange"
+                        className="col-span-3"
                       />
-                      <Label htmlFor="exclude-from-low-stock" className="text-sm font-medium">
-                        Exclude from low stock display
-                      </Label>
                     </div>
-                    <Button 
-                      className="w-full" 
-                      onClick={handleAddItem}
-                      disabled={isAddingItem}
-                    >
-                      {isAddingItem ? "Adding..." : "Add Item"}
-                    </Button>
                   </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => {
+                      setIsAddItemDialogOpen(false);
+                      setNewItem({
+                        name: "",
+                        description: "",
+                        quantity: "",
+                        category: "",
+                        location: "Safestore",
+                        person_name: "",
+                        exclude_from_low_stock: false
+                      });
+                      setQuantityError(null);
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleAddItem}
+                      disabled={!newItem.name || !newItem.category || !newItem.quantity || !!quantityError}
+                    >
+                      Add Item
+                    </Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
             )}
