@@ -76,12 +76,12 @@ export default function InventoryPage() {
     person_name: "",
     exclude_from_low_stock: false
   })
+  const [quantityError, setQuantityError] = useState<string | null>(null)
   const [isCheckingName, setIsCheckingName] = useState(false)
   const [nameExists, setNameExists] = useState(false)
   const [isDeletingItem, setIsDeletingItem] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
-  const [quantityError, setQuantityError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchItems()
@@ -163,7 +163,7 @@ export default function InventoryPage() {
 
   const handleNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
-    setNewItem({ ...newItem, name: newName })
+    setNewItem(prev => ({ ...prev, name: newName }))
     await checkDuplicateName(newName)
   }
 
@@ -499,12 +499,19 @@ export default function InventoryPage() {
                       <Label htmlFor="name" className="text-right">
                         Name *
                       </Label>
-                      <Input
-                        id="name"
-                        value={newItem.name}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
-                        className="col-span-3"
-                      />
+                      <div className="col-span-3">
+                        <Input
+                          id="name"
+                          value={newItem.name}
+                          onChange={handleNameChange}
+                          className={cn(nameExists && "border-yellow-500")}
+                        />
+                        {nameExists && (
+                          <p className="text-sm text-yellow-600 mt-1">
+                            An item with this name already exists. Please choose a different name.
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="description" className="text-right">
@@ -539,24 +546,59 @@ export default function InventoryPage() {
                       <Label htmlFor="category" className="text-right">
                         Category *
                       </Label>
-                      <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(category => (
-                            <SelectItem key={category.id} value={category.name}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="col-span-3 flex gap-2">
+                        <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map(category => (
+                              <SelectItem key={category.id} value={category.name}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(userRole === 'admin' || userRole === 'editor') && (
+                          <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Add New Category</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="newCategory">Category Name</Label>
+                                  <Input
+                                    id="newCategory"
+                                    value={newCategoryName}
+                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                  />
+                                </div>
+                                <Button 
+                                  className="w-full" 
+                                  onClick={handleAddCategory}
+                                >
+                                  Add Category
+                                </Button>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="location" className="text-right">
                         Location
                       </Label>
-                      <Select value={newItem.location} onValueChange={(value) => setNewItem({ ...newItem, location: value })}>
+                      <Select 
+                        value={newItem.location} 
+                        onValueChange={(value) => setNewItem(prev => ({ ...prev, location: value, person_name: "" }))}
+                      >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Select a location" />
                         </SelectTrigger>
@@ -566,17 +608,19 @@ export default function InventoryPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="person_name" className="text-right">
-                        Person Name
-                      </Label>
-                      <Input
-                        id="person_name"
-                        value={newItem.person_name}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
-                        className="col-span-3"
-                      />
-                    </div>
+                    {newItem.location === 'Home' && (
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="person_name" className="text-right">
+                          Person Name *
+                        </Label>
+                        <Input
+                          id="person_name"
+                          value={newItem.person_name}
+                          onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
+                          className="col-span-3"
+                        />
+                      </div>
+                    )}
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="exclude-from-low-stock" className="text-right">
                         Exclude from low stock display
@@ -584,7 +628,7 @@ export default function InventoryPage() {
                       <Switch
                         id="exclude-from-low-stock"
                         checked={newItem.exclude_from_low_stock}
-                        onCheckedChange={(checked) => setNewItem({ ...newItem, exclude_from_low_stock: checked })}
+                        onCheckedChange={(checked) => setNewItem(prev => ({ ...prev, exclude_from_low_stock: checked }))}
                         className="col-span-3"
                       />
                     </div>
@@ -602,12 +646,13 @@ export default function InventoryPage() {
                         exclude_from_low_stock: false
                       });
                       setQuantityError(null);
+                      setNameExists(false);
                     }}>
                       Cancel
                     </Button>
                     <Button 
                       onClick={handleAddItem}
-                      disabled={!newItem.name || !newItem.category || !newItem.quantity || !!quantityError}
+                      disabled={!newItem.name || !newItem.category || !newItem.quantity || !!quantityError || nameExists || (newItem.location === 'Home' && !newItem.person_name)}
                     >
                       Add Item
                     </Button>

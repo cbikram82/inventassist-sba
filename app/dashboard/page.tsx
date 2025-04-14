@@ -106,6 +106,7 @@ export default function DashboardPage() {
   const [items, setItems] = useState<Item[]>([])
   const [isCheckinDialogOpen, setIsCheckinDialogOpen] = useState(false)
   const [currentCheckinItems, setCurrentCheckinItems] = useState<EventItem[]>([])
+  const [isAddingCategory, setIsAddingCategory] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -321,7 +322,7 @@ export default function DashboardPage() {
 
   const handleNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
-    setNewItem({ ...newItem, name: newName })
+    setNewItem(prev => ({ ...prev, name: newName }))
     await checkDuplicateName(newName)
   }
 
@@ -408,6 +409,7 @@ export default function DashboardPage() {
       })
 
       setNewCategoryName("")
+      setIsAddingCategory(false)
       fetchCategories()
     } catch (error) {
       console.error('Error adding category:', error)
@@ -708,12 +710,19 @@ export default function DashboardPage() {
                           <Label htmlFor="name" className="text-right">
                             Name *
                           </Label>
-                          <Input
-                            id="name"
-                            value={newItem.name}
-                            onChange={(e) => setNewItem(prev => ({ ...prev, name: e.target.value }))}
-                            className="col-span-3"
-                          />
+                          <div className="col-span-3">
+                            <Input
+                              id="name"
+                              value={newItem.name}
+                              onChange={handleNameChange}
+                              className={cn(nameExists && "border-yellow-500")}
+                            />
+                            {nameExists && (
+                              <p className="text-sm text-yellow-600 mt-1">
+                                An item with this name already exists. Please choose a different name.
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="description" className="text-right">
@@ -748,45 +757,82 @@ export default function DashboardPage() {
                           <Label htmlFor="category" className="text-right">
                             Category *
                           </Label>
-                          <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
-                            <SelectTrigger className="col-span-3">
-                              <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map(category => (
-                                <SelectItem key={category.id} value={category.name}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="col-span-3 flex gap-2">
+                            <Select value={newItem.category} onValueChange={(value) => setNewItem(prev => ({ ...prev, category: value }))}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map(category => (
+                                  <SelectItem key={category.id} value={category.name}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {(userRole === 'admin' || userRole === 'editor') && (
+                              <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="icon">
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Add New Category</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor="newCategory">Category Name</Label>
+                                      <Input
+                                        id="newCategory"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                      />
+                                    </div>
+                                    <Button 
+                                      className="w-full" 
+                                      onClick={handleAddCategory}
+                                    >
+                                      Add Category
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                           <Label htmlFor="location" className="text-right">
                             Location
                           </Label>
-                          <Select value={newItem.location} onValueChange={(value) => setNewItem(prev => ({ ...prev, location: value }))}>
-                            <SelectTrigger className="col-span-3">
+                          <Select 
+                            value={newItem.location} 
+                            onValueChange={(value) => setNewItem(prev => ({ ...prev, location: value, person_name: "" }))}
+                            className="col-span-3"
+                          >
+                            <SelectTrigger>
                               <SelectValue placeholder="Select a location" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Safestore">Safestore</SelectItem>
-                              <SelectItem value="Office">Office</SelectItem>
-                              <SelectItem value="Other">Other</SelectItem>
+                              <SelectItem value="Home">Home</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="person_name" className="text-right">
-                            Person Name
-                          </Label>
-                          <Input
-                            id="person_name"
-                            value={newItem.person_name}
-                            onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
-                            className="col-span-3"
-                          />
-                        </div>
+                        {newItem.location === 'Home' && (
+                          <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="person_name" className="text-right">
+                              Person Name *
+                            </Label>
+                            <Input
+                              id="person_name"
+                              value={newItem.person_name}
+                              onChange={(e) => setNewItem(prev => ({ ...prev, person_name: e.target.value }))}
+                              className="col-span-3"
+                            />
+                          </div>
+                        )}
                       </div>
                       <DialogFooter>
                         <Button variant="outline" onClick={() => {
@@ -800,12 +846,13 @@ export default function DashboardPage() {
                             person_name: ""
                           });
                           setQuantityError(null);
+                          setNameExists(false);
                         }}>
                           Cancel
                         </Button>
                         <Button 
                           onClick={handleAddItem}
-                          disabled={!newItem.name || !newItem.category || !newItem.quantity || !!quantityError}
+                          disabled={!newItem.name || !newItem.category || !newItem.quantity || !!quantityError || nameExists || (newItem.location === 'Home' && !newItem.person_name)}
                         >
                           Add Item
                         </Button>
