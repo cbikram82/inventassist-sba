@@ -211,7 +211,7 @@ export default function DashboardPage() {
       // Fetch users with their auth data
       const { data: usersData, error: usersDataError } = await supabase
         .from('users')
-        .select('id, email, role, last_activity, last_sign_in_at')
+        .select('id, email, role, last_activity')
         .order('created_at', { ascending: false })
         .limit(5)
 
@@ -242,11 +242,11 @@ export default function DashboardPage() {
         id: string; 
         email: string; 
         role: string; 
-        last_activity: string | null; 
-        last_sign_in_at: string | null 
+        last_activity: string | null
       }) => ({
         ...user,
-        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null
+        last_activity: user.id === session?.user?.id ? new Date().toISOString() : user.last_activity || null,
+        last_sign_in_at: null // Add this to maintain the interface compatibility
       })) || [];
 
       // Update current user's last activity
