@@ -162,8 +162,7 @@ export function CheckinDialog({
         const { error: updateError } = await supabase
           .from('items')
           .update({
-            quantity: (currentItem?.quantity || 0) + checkinQuantity,
-            updated_at: new Date().toISOString()
+            quantity: (currentItem?.quantity || 0) + checkinQuantity
           })
           .eq('id', item.item_id);
 
@@ -173,8 +172,7 @@ export function CheckinDialog({
         const { error: updateEventItemError } = await supabase
           .from('event_items')
           .update({
-            quantity: item.original_quantity - (item.actual_quantity - checkinQuantity),
-            updated_at: new Date().toISOString()
+            quantity: item.original_quantity - (item.actual_quantity - checkinQuantity)
           })
           .eq('id', item.event_item_id);
 
