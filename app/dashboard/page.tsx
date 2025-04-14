@@ -720,11 +720,15 @@ export default function DashboardPage() {
                         <div className="space-y-2">
                           <Label htmlFor="quantity">Quantity</Label>
                           <Input
+                            id="quantity"
                             type="number"
-                            min="1"
-                            value={quantity}
-                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 0))}
+                            min="0"
                             placeholder="Enter quantity"
+                            value={quantity}
+                            onChange={(e) => {
+                              const value = e.target.value === '' ? 0 : parseInt(e.target.value);
+                              setQuantity(isNaN(value) ? 0 : value);
+                            }}
                           />
                           {quantity <= 0 && (
                             <p className="text-sm text-red-500">Quantity needs to be more than zero</p>
@@ -804,7 +808,7 @@ export default function DashboardPage() {
                         <Button 
                           className="w-full" 
                           onClick={handleAddItem}
-                          disabled={!selectedItem || !quantity || quantity <= 0}
+                          disabled={!selectedNextEvent || !selectedItem || quantity <= 0}
                         >
                           Add Item
                         </Button>
