@@ -97,6 +97,7 @@ export default function EventItemsPage() {
   const [selectedItem, setSelectedItem] = useState<string>("")
   const [quantity, setQuantity] = useState<number>(0)
   const [quantityError, setQuantityError] = useState<string | null>(null)
+  const [selectedItemAvailableQuantity, setSelectedItemAvailableQuantity] = useState<number>(0)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [availableEvents] = useState([
     "Sarasawati Puja",
@@ -471,6 +472,8 @@ export default function EventItemsPage() {
     const numValue = parseInt(value);
     if (isNaN(numValue) || numValue <= 0) {
       setQuantityError("Quantity must be greater than 0");
+    } else if (numValue > selectedItemAvailableQuantity) {
+      setQuantityError(`Quantity cannot exceed available quantity (${selectedItemAvailableQuantity})`);
     } else {
       setQuantityError(null);
     }
@@ -541,7 +544,16 @@ export default function EventItemsPage() {
                     <div className="space-y-4">
                       <div>
                         <Label htmlFor="item">Item</Label>
-                        <Select value={selectedItem} onValueChange={setSelectedItem}>
+                        <Select value={selectedItem} onValueChange={(value) => {
+                          setSelectedItem(value);
+                          const item = items.find(i => i.id === value);
+                          if (item) {
+                            setSelectedItemAvailableQuantity(item.quantity);
+                            // Reset quantity and error when item changes
+                            setQuantity(0);
+                            setQuantityError(null);
+                          }
+                        }}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select an item" />
                           </SelectTrigger>
