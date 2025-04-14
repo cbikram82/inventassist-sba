@@ -461,6 +461,13 @@ export default function EventItemsPage() {
   };
 
   const handleQuantityChange = (value: string) => {
+    // Allow empty string (clearing the input)
+    if (value === '') {
+      setQuantity(0);
+      setQuantityError(null);
+      return;
+    }
+
     const numValue = parseInt(value);
     if (isNaN(numValue) || numValue <= 0) {
       setQuantityError("Quantity must be greater than 0");
