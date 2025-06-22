@@ -203,7 +203,7 @@ export default function DashboardPage() {
 
       if (lowStockError) throw lowStockError
 
-      // Fetch event items if an event is selected
+      // Fetch event items if an event is selected -- Test for checkin. 
       if (selectedNextEvent) {
         const { data: eventItemsData, error: eventItemsError } = await supabase
           .from('event_items')
